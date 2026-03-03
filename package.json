@@ -1,0 +1,46 @@
+{
+  "name": "ratemyprofessors-client",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Typed, retrying, rate-limited unofficial client for RateMyProfessors.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./extras": {
+      "types": "./dist/extras/index.d.ts",
+      "import": "./dist/extras/index.js",
+      "default": "./dist/extras/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ratemyprofessors",
+    "api-client",
+    "ratings"
+  ],
+  "author": "Amaan",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourname/ratemyprofessors-client-ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}
