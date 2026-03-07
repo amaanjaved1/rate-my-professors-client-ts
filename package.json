@@ -5,6 +5,10 @@
   "description": "Typed, retrying, rate-limited unofficial client for RateMyProfessors.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "homepage": "https://github.com/amaanjaved1/rate-my-professors-client-ts#readme",
+  "bugs": {
+    "url": "https://github.com/amaanjaved1/rate-my-professors-client-ts/issues"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -30,14 +34,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourname/ratemyprofessors-client-ts"
+    "url": "https://github.com/amaanjaved1/rate-my-professors-client-ts"
   },
   "engines": {
     "node": ">=18"
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "devDependencies": {
     "@types/node": "^20.10.0",
