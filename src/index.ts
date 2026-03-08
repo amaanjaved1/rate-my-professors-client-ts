@@ -7,6 +7,11 @@ export {
   createConfig,
   configFromEnv,
   DEFAULT_BASE_URL,
+  DEFAULT_PROFESSORS_PAGE_URL,
+  DEFAULT_SCHOOLS_PAGE_URL,
+  DEFAULT_COMPARE_SCHOOLS_PAGE_URL,
+  DEFAULT_SEARCH_PROFESSORS_PAGE_URL,
+  DEFAULT_SEARCH_SCHOOLS_PAGE_URL,
   type RMPClientConfig,
 } from "./config.js";
 export {
@@ -21,10 +26,13 @@ export {
 export type {
   School,
   Professor,
-  RatingSummary,
   Rating,
+  RatingDistributionBucket,
   ProfessorRatingsPage,
   ProfessorSearchResult,
   SchoolSearchResult,
+  CompareSchoolsResult,
+  SchoolRating,
+  SchoolRatingsPage,
 } from "./models.js";
 export { TokenBucket } from "./rateLimit.js";

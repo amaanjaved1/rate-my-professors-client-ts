@@ -95,6 +95,54 @@ export class HttpClient {
     throw new RetryError(lastError ?? new Error("Unknown error"));
   }
 
+  async getHtml(
+    url: string,
+    headers?: Record<string, string>
+  ): Promise<string> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= this._config.max_retries; attempt++) {
+      await this._bucket.consume();
+      this._abortController = new AbortController();
+      const timeoutId = setTimeout(
+        () => this._abortController?.abort(),
+        this._config.timeout_seconds * 1000
+      );
+
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this._headers(headers),
+          signal: this._abortController.signal,
+        });
+        clearTimeout(timeoutId);
+        this._abortController = null;
+
+        if (response.ok) {
+          return await response.text();
+        }
+
+        const body = await response.text();
+        const err = new HttpError(response.status, url, body);
+        lastError = err;
+        if (response.status >= 500 && response.status < 600 && attempt < this._config.max_retries) {
+          continue;
+        }
+        throw err;
+      } catch (e) {
+        clearTimeout(timeoutId);
+        this._abortController = null;
+        if (e instanceof HttpError) throw e;
+        lastError = e instanceof Error ? e : new Error(String(e));
+        if (attempt >= this._config.max_retries) {
+          throw new RetryError(lastError);
+        }
+      }
+    }
+
+    throw new RetryError(lastError ?? new Error("Unknown error"));
+  }
+
   close(): void {
     this._abortController?.abort();
   }
