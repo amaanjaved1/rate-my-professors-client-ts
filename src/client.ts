@@ -71,7 +71,6 @@ query TeacherRatings($id: ID!, $first: Int!, $after: String) {
             difficultyRating
             date
             grade
-            helpfulRating
             thumbsUpTotal
             thumbsDownTotal
             class
@@ -226,6 +225,16 @@ function buildRatingDistribution(
 export class RMPClient {
   private _config: RMPClientConfig;
   private _http: HttpClient | null = null;
+  /** Cache of all ratings per professor (filled on first page load so "Load More" needs no extra request). */
+  private _professorRatingsCache = new Map<
+    string,
+    { professor: Professor; ratings: Rating[] }
+  >();
+  /** Cache of all ratings per school (filled on first page load so "Show More" needs no extra request). */
+  private _schoolRatingsCache = new Map<
+    string,
+    { school: School; ratings: SchoolRating[] }
+  >();
 
   constructor(config?: RMPClientConfig | null) {
     this._config = config ?? configFromEnv();
@@ -243,6 +252,8 @@ export class RMPClient {
       this._http.close();
       this._http = null;
     }
+    this._professorRatingsCache.clear();
+    this._schoolRatingsCache.clear();
   }
 
   /** Send a raw JSON/GraphQL-style payload to the RMP backend. */
@@ -532,15 +543,31 @@ export class RMPClient {
     };
   }
 
-  /** Fetch a single page of ratings for a professor. */
+  /** Fetch a single page of ratings for a professor (5 at a time by default; "Load More" is served from cache, no extra network request). */
   async getProfessorRatingsPage(
     professorId: string,
     options: { cursor?: string | null; page_size?: number } = {}
   ): Promise<ProfessorRatingsPage> {
-    const pageSize = options.page_size ?? 20;
+    const pageSize = options.page_size ?? 5;
     const cursor = options.cursor ?? null;
 
-    // Relay cursor (non-numeric): use GraphQL for next page
+    // Numeric cursor: serve from cache (no network)
+    if (cursor !== null && /^\d+$/.test(cursor)) {
+      const cached = this._professorRatingsCache.get(professorId);
+      if (cached) {
+        const start = Math.max(0, Number(cursor));
+        const pageSlice = cached.ratings.slice(start, start + pageSize);
+        const hasNext = start + pageSize < cached.ratings.length;
+        return {
+          professor: cached.professor,
+          ratings: pageSlice,
+          has_next_page: hasNext,
+          next_cursor: hasNext ? String(start + pageSize) : null,
+        };
+      }
+    }
+
+    // Non-numeric cursor (legacy GraphQL cursor): one GraphQL request
     if (cursor !== null && !/^\d+$/.test(cursor)) {
       return this._fetchProfessorRatingsViaGraphql(professorId, {
         after: cursor,
@@ -548,7 +575,20 @@ export class RMPClient {
       });
     }
 
-    // First page or legacy numeric offset: from HTML
+    // First page: check cache so repeated "first page" calls don't refetch
+    const cached = this._professorRatingsCache.get(professorId);
+    if (cached) {
+      const pageSlice = cached.ratings.slice(0, pageSize);
+      const hasNext = cached.ratings.length > pageSize;
+      return {
+        professor: cached.professor,
+        ratings: pageSlice,
+        has_next_page: hasNext,
+        next_cursor: hasNext ? String(pageSize) : null,
+      };
+    }
+
+    // Fetch HTML and build initial list
     const store = await this._fetchRelayStoreForProfessor(professorId);
     const record = getProfessorNode(store, professorId);
     if (!record) {
@@ -565,7 +605,7 @@ export class RMPClient {
       ratingRecords = getAllRatingRecords(store);
     }
 
-    const ratingsModels: Rating[] = ratingRecords.map((r) =>
+    let ratingsModels: Rating[] = ratingRecords.map((r) =>
       this._parseRatingNode(this._relayRatingToNode(r))
     );
 
@@ -574,35 +614,32 @@ export class RMPClient {
       record
     );
 
-    let pageSlice: Rating[];
-    let hasNext: boolean;
-    let nextCursor: string | null;
-
-    if (cursor !== null && /^\d+$/.test(cursor)) {
-      const start = Math.max(0, Number(cursor));
-      pageSlice = ratingsModels.slice(start, start + pageSize);
-      hasNext = start + pageSize < ratingsModels.length;
-      nextCursor = hasNext ? String(start + pageSize) : null;
-    } else {
-      pageSlice = ratingsModels.slice(0, pageSize);
-      if (
-        relayPageInfo &&
-        relayPageInfo.hasNextPage &&
-        relayPageInfo.endCursor
-      ) {
-        hasNext = true;
-        nextCursor = String(relayPageInfo.endCursor);
-      } else {
-        hasNext = ratingsModels.length > pageSize;
-        nextCursor = hasNext ? String(pageSize) : null;
+    // If there are more pages, fetch all via GraphQL so "Load More" needs no further request
+    if (
+      relayPageInfo &&
+      relayPageInfo.hasNextPage &&
+      relayPageInfo.endCursor != null
+    ) {
+      let after: string | null = String(relayPageInfo.endCursor);
+      while (after != null) {
+        const page = await this._fetchProfessorRatingsViaGraphql(professorId, {
+          after,
+          first: 100,
+        });
+        ratingsModels = ratingsModels.concat(page.ratings);
+        after = page.has_next_page && page.next_cursor ? page.next_cursor : null;
       }
     }
 
+    this._professorRatingsCache.set(professorId, { professor, ratings: ratingsModels });
+
+    const pageSlice = ratingsModels.slice(0, pageSize);
+    const hasNext = ratingsModels.length > pageSize;
     return {
       professor,
       ratings: pageSlice,
       has_next_page: hasNext,
-      next_cursor: nextCursor,
+      next_cursor: hasNext ? String(pageSize) : null,
     };
   }
 
@@ -781,14 +818,31 @@ export class RMPClient {
     };
   }
 
-  /** Fetch a single page of ratings for a school. */
+  /** Fetch a single page of ratings for a school (5 at a time by default; "Show More" is served from cache, no extra network request). */
   async getSchoolRatingsPage(
     schoolId: string,
     options: { cursor?: string | null; page_size?: number } = {}
   ): Promise<SchoolRatingsPage> {
-    const pageSize = options.page_size ?? 20;
+    const pageSize = options.page_size ?? 5;
     const cursor = options.cursor ?? null;
 
+    // Numeric cursor: serve from cache (no network)
+    if (cursor !== null && /^\d+$/.test(cursor)) {
+      const cached = this._schoolRatingsCache.get(schoolId);
+      if (cached) {
+        const start = Math.max(0, Number(cursor));
+        const pageSlice = cached.ratings.slice(start, start + pageSize);
+        const hasNext = start + pageSize < cached.ratings.length;
+        return {
+          school: cached.school,
+          ratings: pageSlice,
+          has_next_page: hasNext,
+          next_cursor: hasNext ? String(start + pageSize) : null,
+        };
+      }
+    }
+
+    // Non-numeric cursor (legacy GraphQL cursor): one GraphQL request
     if (cursor !== null && !/^\d+$/.test(cursor)) {
       return this._fetchSchoolRatingsViaGraphql(schoolId, {
         after: cursor,
@@ -796,6 +850,20 @@ export class RMPClient {
       });
     }
 
+    // First page: check cache so repeated "first page" calls don't refetch
+    const cached = this._schoolRatingsCache.get(schoolId);
+    if (cached) {
+      const pageSlice = cached.ratings.slice(0, pageSize);
+      const hasNext = cached.ratings.length > pageSize;
+      return {
+        school: cached.school,
+        ratings: pageSlice,
+        has_next_page: hasNext,
+        next_cursor: hasNext ? String(pageSize) : null,
+      };
+    }
+
+    // Fetch HTML and build initial list
     const store = await this._fetchRelayStoreForSchool(schoolId);
     const record = getSchoolNode(store, schoolId);
     if (!record) {
@@ -812,41 +880,38 @@ export class RMPClient {
       ratingRecords = getAllSchoolRatingRecords(store);
     }
 
-    const ratingsModels: SchoolRating[] = ratingRecords.map((r) =>
+    let ratingsModels: SchoolRating[] = ratingRecords.map((r) =>
       this._parseSchoolRatingNode(r)
     );
 
     const relayPageInfo = getSchoolRatingsConnectionPageInfo(store, record);
 
-    let pageSlice: SchoolRating[];
-    let hasNext: boolean;
-    let nextCursor: string | null;
-
-    if (cursor !== null && /^\d+$/.test(cursor)) {
-      const start = Math.max(0, Number(cursor));
-      pageSlice = ratingsModels.slice(start, start + pageSize);
-      hasNext = start + pageSize < ratingsModels.length;
-      nextCursor = hasNext ? String(start + pageSize) : null;
-    } else {
-      pageSlice = ratingsModels.slice(0, pageSize);
-      if (
-        relayPageInfo &&
-        relayPageInfo.hasNextPage &&
-        relayPageInfo.endCursor
-      ) {
-        hasNext = true;
-        nextCursor = String(relayPageInfo.endCursor);
-      } else {
-        hasNext = ratingsModels.length > pageSize;
-        nextCursor = hasNext ? String(pageSize) : null;
+    // If there are more pages, fetch all via GraphQL so "Show More" needs no further request
+    if (
+      relayPageInfo &&
+      relayPageInfo.hasNextPage &&
+      relayPageInfo.endCursor != null
+    ) {
+      let after: string | null = String(relayPageInfo.endCursor);
+      while (after != null) {
+        const page = await this._fetchSchoolRatingsViaGraphql(schoolId, {
+          after,
+          first: 100,
+        });
+        ratingsModels = ratingsModels.concat(page.ratings);
+        after = page.has_next_page && page.next_cursor ? page.next_cursor : null;
       }
     }
 
+    this._schoolRatingsCache.set(schoolId, { school, ratings: ratingsModels });
+
+    const pageSlice = ratingsModels.slice(0, pageSize);
+    const hasNext = ratingsModels.length > pageSize;
     return {
       school,
       ratings: pageSlice,
       has_next_page: hasNext,
-      next_cursor: nextCursor,
+      next_cursor: hasNext ? String(pageSize) : null,
     };
   }
 
@@ -964,7 +1029,6 @@ export class RMPClient {
       "textbookUse" in record
         ? record.textbookUse
         : record.textbook;
-    out.helpful = record.helpfulRating ?? record.helpful;
     out.thumbsUp = record.thumbsUpTotal ?? record.thumbsUp;
     out.thumbsDown = record.thumbsDownTotal ?? record.thumbsDown;
 
@@ -1096,7 +1160,6 @@ export class RMPClient {
       tags,
       course_raw: (node.course as string) ?? null,
       details,
-      helpful: safeInt(node.helpful),
       thumbs_up: safeInt(node.thumbsUp ?? node.thumbs_up),
       thumbs_down: safeInt(node.thumbsDown ?? node.thumbs_down),
     };
@@ -1199,7 +1262,6 @@ export class RMPClient {
       comment: String(record.comment ?? ""),
       overall,
       category_ratings: categoryRatings,
-      helpful: safeInt(record.helpful),
       thumbs_up: safeInt(
         record.thumbsUpTotal ?? record.thumbsUp ?? record.thumbs_up
       ),

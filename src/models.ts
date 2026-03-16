@@ -2,12 +2,17 @@
  * Data models for RateMyProfessors API responses.
  */
 
+//------------------------------------------------------------------------------
+
+// For schools
+
 export interface School {
   id: string;
   name: string;
   location?: string | null;
   overall_quality?: number | null;
   num_ratings?: number | null;
+  // These are the categories that are rated for the school
   reputation?: number | null;
   safety?: number | null;
   happiness?: number | null;
@@ -20,10 +25,18 @@ export interface School {
   food?: number | null;
 }
 
-export interface RatingDistributionBucket {
-  count: number;
-  percentage: number;
+export interface SchoolRating {
+  date: Date;
+  comment: string;
+  overall?: number | null;
+  category_ratings?: Record<string, number> | null; // These are the categories that are rated for the review
+  thumbs_up?: number | null;
+  thumbs_down?: number | null;
 }
+
+//------------------------------------------------------------------------------
+
+// For professors
 
 export interface Professor {
   id: string;
@@ -32,11 +45,16 @@ export interface Professor {
   school?: School | null;
   url?: string | null;
   overall_rating?: number | null;
-  num_ratings?: number | null;
+  num_ratings?: number | null; // The number of ratings for the professor
   percent_take_again?: number | null;
   level_of_difficulty?: number | null;
   tags: string[];
   rating_distribution?: Record<number, RatingDistributionBucket> | null;
+}
+
+export interface RatingDistributionBucket {
+  count: number;
+  percentage: number;
 }
 
 export interface Rating {
@@ -47,10 +65,13 @@ export interface Rating {
   tags: string[];
   course_raw?: string | null;
   details?: Record<string, unknown> | null;
-  helpful?: number | null;
   thumbs_up?: number | null;
   thumbs_down?: number | null;
 }
+
+//------------------------------------------------------------------------------
+
+// For pages
 
 export interface ProfessorRatingsPage {
   professor: Professor;
@@ -58,6 +79,17 @@ export interface ProfessorRatingsPage {
   has_next_page: boolean;
   next_cursor: string | null;
 }
+
+export interface SchoolRatingsPage {
+  school: School;
+  ratings: SchoolRating[];
+  has_next_page: boolean;
+  next_cursor: string | null;
+}
+
+//------------------------------------------------------------------------------
+
+// For search results
 
 export interface ProfessorSearchResult {
   professors: Professor[];
@@ -80,21 +112,4 @@ export interface SchoolSearchResult {
 export interface CompareSchoolsResult {
   school_1: School;
   school_2: School;
-}
-
-export interface SchoolRating {
-  date: Date;
-  comment: string;
-  overall?: number | null;
-  category_ratings?: Record<string, number> | null;
-  helpful?: number | null;
-  thumbs_up?: number | null;
-  thumbs_down?: number | null;
-}
-
-export interface SchoolRatingsPage {
-  school: School;
-  ratings: SchoolRating[];
-  has_next_page: boolean;
-  next_cursor: string | null;
 }

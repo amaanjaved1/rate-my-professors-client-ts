@@ -10,6 +10,11 @@ type StoreRecord = Record<string, unknown>;
 // ---------------------------------------------------------------------------
 
 export function extractRelayStore(html: string): Store {
+  /*
+  This function extracts the relay store from the HTML of a RMP page.
+  It is used to get the data for the professor and school pages.
+  */
+
   const marker = "window.__RELAY_STORE__";
   const markerIdx = html.indexOf(marker);
   if (markerIdx === -1) {
@@ -63,6 +68,10 @@ export function extractRelayStore(html: string): Store {
 }
 
 export function isRecordRef(value: unknown): value is { __ref: string } {
+  /*
+  This function checks if the value is a record reference.
+  It is used to check if the value is a reference to a record in the store.
+  */
   return (
     typeof value === "object" &&
     value !== null &&
@@ -73,7 +82,7 @@ export function isRecordRef(value: unknown): value is { __ref: string } {
 
 export function resolveRef(
   store: Store,
-  ref: { __ref: string }
+  ref: { __ref: string },
 ): StoreRecord | null {
   const recordId = ref.__ref;
   if (!recordId) return null;
@@ -83,10 +92,7 @@ export function resolveRef(
     : null;
 }
 
-export function resolveRefs(
-  store: Store,
-  refIds: string[]
-): StoreRecord[] {
+export function resolveRefs(store: Store, refIds: string[]): StoreRecord[] {
   const out: StoreRecord[] = [];
   for (const refId of refIds ?? []) {
     if (typeof refId !== "string") continue;
@@ -104,13 +110,14 @@ export function resolveRefs(
 
 export function getProfessorNode(
   store: Store,
-  professorId: string
+  professorId: string,
 ): StoreRecord | null {
   const idStr = String(professorId);
   for (const record of Object.values(store)) {
     if (typeof record !== "object" || record === null) continue;
     const rec = record as StoreRecord;
-    if (rec.__typename !== "Professor" && rec.__typename !== "Teacher") continue;
+    if (rec.__typename !== "Professor" && rec.__typename !== "Teacher")
+      continue;
     const legacy = rec.legacyId;
     if (legacy != null && String(legacy) === idStr) return rec;
     const rid = rec.id ?? rec.__id;
@@ -120,7 +127,7 @@ export function getProfessorNode(
 }
 
 function getRatingsConnectionRef(
-  professorRecord: StoreRecord
+  professorRecord: StoreRecord,
 ): { __ref: string } | null {
   for (const key of ["ratings(first:5)", "ratings"]) {
     const val = professorRecord[key];
@@ -134,7 +141,7 @@ function getRatingsConnectionRef(
 
 function edgesToRatingRecords(
   store: Store,
-  edgesValue: unknown
+  edgesValue: unknown,
 ): StoreRecord[] {
   const ratings: StoreRecord[] = [];
   const ratingTypenames = new Set(["Rating", "ProfessorRating", "Review"]);
@@ -160,11 +167,9 @@ function edgesToRatingRecords(
     edgesValue !== null &&
     "__refs" in edgesValue
   ) {
-    const edgeRefs =
-      ((edgesValue as StoreRecord).__refs as string[]) ?? [];
+    const edgeRefs = ((edgesValue as StoreRecord).__refs as string[]) ?? [];
     for (const refId of edgeRefs) {
-      const edgeRecord =
-        typeof refId === "string" ? store[refId] : undefined;
+      const edgeRecord = typeof refId === "string" ? store[refId] : undefined;
       if (typeof edgeRecord !== "object" || edgeRecord === null) continue;
       const node = (edgeRecord as StoreRecord).node;
       if (isRecordRef(node)) {
@@ -185,7 +190,7 @@ function edgesToRatingRecords(
 
 function getProfessorRatingsConnection(
   store: Store,
-  professorRecord: StoreRecord
+  professorRecord: StoreRecord,
 ): StoreRecord | null {
   const ratingsRef = getRatingsConnectionRef(professorRecord);
   if (ratingsRef) return resolveRef(store, ratingsRef);
@@ -202,7 +207,7 @@ function getProfessorRatingsConnection(
 
 export function getProfessorRatingsConnectionPageInfo(
   store: Store,
-  professorRecord: StoreRecord
+  professorRecord: StoreRecord,
 ): StoreRecord | null {
   const conn = getProfessorRatingsConnection(store, professorRecord);
   if (!conn) return null;
@@ -214,7 +219,7 @@ export function getProfessorRatingsConnectionPageInfo(
 
 export function getRatingsFromStore(
   store: Store,
-  professorRecord: StoreRecord
+  professorRecord: StoreRecord,
 ): StoreRecord[] {
   const conn = getProfessorRatingsConnection(store, professorRecord);
   if (!conn) return [];
@@ -239,13 +244,14 @@ export function getAllRatingRecords(store: Store): StoreRecord[] {
 
 export function getSchoolNode(
   store: Store,
-  schoolId: string
+  schoolId: string,
 ): StoreRecord | null {
   const sid = String(schoolId);
   for (const [key, record] of Object.entries(store)) {
     if (typeof record !== "object" || record === null) continue;
     const rec = record as StoreRecord;
-    if (rec.__typename !== "School" && rec.__typename !== "University") continue;
+    if (rec.__typename !== "School" && rec.__typename !== "University")
+      continue;
     const legacy = rec.legacyId;
     if (legacy != null && String(legacy) === sid) return rec;
     const rid = rec.id ?? rec.__id;
@@ -264,14 +270,14 @@ export function getSchoolNode(
       typeof r === "object" &&
       r !== null &&
       ((r as StoreRecord).__typename === "School" ||
-        (r as StoreRecord).__typename === "University")
+        (r as StoreRecord).__typename === "University"),
   ) as StoreRecord[];
   if (schools.length === 1) return schools[0];
   return null;
 }
 
 function getSchoolRatingsConnectionRef(
-  schoolRecord: StoreRecord
+  schoolRecord: StoreRecord,
 ): { __ref: string } | null {
   for (const key of ["ratings(first:5)", "ratings"]) {
     const val = schoolRecord[key];
@@ -285,7 +291,7 @@ function getSchoolRatingsConnectionRef(
 
 function edgesToSchoolRatingRecords(
   store: Store,
-  edgesValue: unknown
+  edgesValue: unknown,
 ): StoreRecord[] {
   const ratings: StoreRecord[] = [];
   const schoolTypenames = new Set([
@@ -316,11 +322,9 @@ function edgesToSchoolRatingRecords(
     edgesValue !== null &&
     "__refs" in edgesValue
   ) {
-    const edgeRefs =
-      ((edgesValue as StoreRecord).__refs as string[]) ?? [];
+    const edgeRefs = ((edgesValue as StoreRecord).__refs as string[]) ?? [];
     for (const refId of edgeRefs) {
-      const edgeRecord =
-        typeof refId === "string" ? store[refId] : undefined;
+      const edgeRecord = typeof refId === "string" ? store[refId] : undefined;
       if (typeof edgeRecord !== "object" || edgeRecord === null) continue;
       const node = (edgeRecord as StoreRecord).node;
       if (isRecordRef(node)) {
@@ -341,7 +345,7 @@ function edgesToSchoolRatingRecords(
 
 function getSchoolRatingsConnection(
   store: Store,
-  schoolRecord: StoreRecord
+  schoolRecord: StoreRecord,
 ): StoreRecord | null {
   const ratingsRef = getSchoolRatingsConnectionRef(schoolRecord);
   if (ratingsRef) return resolveRef(store, ratingsRef);
@@ -359,7 +363,7 @@ function getSchoolRatingsConnection(
 
 export function getSchoolRatingsConnectionPageInfo(
   store: Store,
-  schoolRecord: StoreRecord
+  schoolRecord: StoreRecord,
 ): StoreRecord | null {
   const conn = getSchoolRatingsConnection(store, schoolRecord);
   if (!conn) return null;
@@ -371,7 +375,7 @@ export function getSchoolRatingsConnectionPageInfo(
 
 export function getSchoolRatingsFromStore(
   store: Store,
-  schoolRecord: StoreRecord
+  schoolRecord: StoreRecord,
 ): StoreRecord[] {
   const conn = getSchoolRatingsConnection(store, schoolRecord);
   if (!conn) return [];
@@ -399,9 +403,7 @@ export function getAllSchoolRatingRecords(store: Store): StoreRecord[] {
 // Professor search page (/search/professors/?q=...)
 // ---------------------------------------------------------------------------
 
-export function getTeacherSearchConnection(
-  store: Store
-): StoreRecord | null {
+export function getTeacherSearchConnection(store: Store): StoreRecord | null {
   const root = store["client:root"];
   if (typeof root !== "object" || root === null) return null;
   const newSearchRef = (root as StoreRecord).newSearch;
@@ -419,7 +421,7 @@ export function getTeacherSearchConnection(
 
 export function edgesToTeacherRecords(
   store: Store,
-  edgesValue: unknown
+  edgesValue: unknown,
 ): StoreRecord[] {
   const teachers: StoreRecord[] = [];
   const teacherTypenames = new Set(["Teacher", "Professor"]);
@@ -449,11 +451,9 @@ export function edgesToTeacherRecords(
     edgesValue !== null &&
     "__refs" in edgesValue
   ) {
-    const edgeRefs =
-      ((edgesValue as StoreRecord).__refs as string[]) ?? [];
+    const edgeRefs = ((edgesValue as StoreRecord).__refs as string[]) ?? [];
     for (const refId of edgeRefs) {
-      const edgeRecord =
-        typeof refId === "string" ? store[refId] : undefined;
+      const edgeRecord = typeof refId === "string" ? store[refId] : undefined;
       if (typeof edgeRecord !== "object" || edgeRecord === null) continue;
       const node = (edgeRecord as StoreRecord).node;
       if (isRecordRef(node)) {
@@ -474,7 +474,7 @@ export function edgesToTeacherRecords(
 }
 
 export function getTeacherSearchResultCount(
-  connection: StoreRecord
+  connection: StoreRecord,
 ): number | null {
   const val = connection.resultCount;
   return val != null ? Number(val) : null;
@@ -482,7 +482,7 @@ export function getTeacherSearchResultCount(
 
 export function getTeacherSearchPageInfo(
   store: Store,
-  connection: StoreRecord
+  connection: StoreRecord,
 ): StoreRecord | null {
   const pageInfoRef = connection.pageInfo;
   if (!isRecordRef(pageInfoRef)) return null;
@@ -494,9 +494,7 @@ export function getTeacherSearchPageInfo(
 // School search page (/search/schools?q=...)
 // ---------------------------------------------------------------------------
 
-export function getSchoolSearchConnection(
-  store: Store
-): StoreRecord | null {
+export function getSchoolSearchConnection(store: Store): StoreRecord | null {
   const root = store["client:root"];
   if (typeof root !== "object" || root === null) return null;
   const newSearchRef = (root as StoreRecord).newSearch;
@@ -514,7 +512,7 @@ export function getSchoolSearchConnection(
 
 export function edgesToSchoolRecords(
   store: Store,
-  edgesValue: unknown
+  edgesValue: unknown,
 ): StoreRecord[] {
   const schools: StoreRecord[] = [];
   const schoolTypenames = new Set(["School", "University"]);
@@ -544,11 +542,9 @@ export function edgesToSchoolRecords(
     edgesValue !== null &&
     "__refs" in edgesValue
   ) {
-    const edgeRefs =
-      ((edgesValue as StoreRecord).__refs as string[]) ?? [];
+    const edgeRefs = ((edgesValue as StoreRecord).__refs as string[]) ?? [];
     for (const refId of edgeRefs) {
-      const edgeRecord =
-        typeof refId === "string" ? store[refId] : undefined;
+      const edgeRecord = typeof refId === "string" ? store[refId] : undefined;
       if (typeof edgeRecord !== "object" || edgeRecord === null) continue;
       const node = (edgeRecord as StoreRecord).node;
       if (isRecordRef(node)) {
@@ -569,7 +565,7 @@ export function edgesToSchoolRecords(
 }
 
 export function getSchoolSearchResultCount(
-  connection: StoreRecord
+  connection: StoreRecord,
 ): number | null {
   const val = connection.resultCount;
   return val != null ? Number(val) : null;
@@ -577,7 +573,7 @@ export function getSchoolSearchResultCount(
 
 export function getSchoolSearchPageInfo(
   store: Store,
-  connection: StoreRecord
+  connection: StoreRecord,
 ): StoreRecord | null {
   const pageInfoRef = connection.pageInfo;
   if (!isRecordRef(pageInfoRef)) return null;

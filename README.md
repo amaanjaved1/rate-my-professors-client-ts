@@ -100,11 +100,9 @@ if (schoolId) {
 
 ```typescript
 const professor = await client.getProfessor(professorId);
-const page = await client.getProfessorRatingsPage(professorId, {
-  cursor: null,
-  page_size: 20,
-});
+const page = await client.getProfessorRatingsPage(professorId);
 console.log(page.professor.name, page.ratings.length, page.has_next_page);
+// Next page (Load More) uses returned page.next_cursor and is served from cache—no extra request.
 ```
 
 **Get school details and compare two schools**
@@ -126,7 +124,7 @@ All I/O methods are `async` and return Promises (or async iterators). Call `clie
 | `searchSchools(query, { page, page_size })` | Search schools by name. Returns `SchoolSearchResult`. |
 | `getSchool(schoolId, { use_compare_page })` | Get one school by ID. Returns `School`. |
 | `getCompareSchools(schoolId1, schoolId2)` | Get two schools (e.g. from compare page). Returns `CompareSchoolsResult`. |
-| `getSchoolRatingsPage(schoolId, { cursor, page_size })` | One page of ratings for a school. Returns `SchoolRatingsPage`. |
+| `getSchoolRatingsPage(schoolId, { cursor, page_size })` | One page of ratings for a school (default 5 per page; “Show More” from cache). Returns `SchoolRatingsPage`. |
 | `iterSchoolRatings(schoolId, { page_size, since })` | Async iterator over all ratings for a school. Yields `SchoolRating`. |
 
 ### Professors and ratings
@@ -137,7 +135,7 @@ All I/O methods are `async` and return Promises (or async iterators). Call `clie
 | `listProfessorsForSchool(school_id, { query, page, page_size })` | List professors at a school. Returns `ProfessorSearchResult`. |
 | `iterProfessorsForSchool(school_id, { query, page_size })` | Async iterator over all professors at a school. Yields `Professor`. |
 | `getProfessor(professorId)` | Get one professor by ID. Returns `Professor`. |
-| `getProfessorRatingsPage(professorId, { cursor, page_size })` | One page of ratings for a professor. Returns `ProfessorRatingsPage`. |
+| `getProfessorRatingsPage(professorId, { cursor, page_size })` | One page of ratings for a professor (default 5 per page; “Load More” from cache). Returns `ProfessorRatingsPage`. |
 | `iterProfessorRatings(professorId, { page_size, since })` | Async iterator over ratings for a professor. Yields `Rating`. |
 
 ### Low-level
@@ -218,8 +216,8 @@ import type {
 
 - **School** – `id`, `name`, `location`, `overall_quality`, `num_ratings`, and category ratings (e.g. `reputation`, `safety`).
 - **Professor** – `id`, `name`, `department`, `school`, `overall_rating`, `num_ratings`, `tags`, `rating_distribution`, etc.
-- **Rating** (professor) – `date`, `comment`, `quality`, `difficulty`, `tags`, `course_raw`, `helpful`, `thumbs_up`/`thumbs_down`.
-- **SchoolRating** – `date`, `comment`, `overall`, `category_ratings`, `helpful`, `thumbs_up`/`thumbs_down`.
+- **Rating** (professor) – `date`, `comment`, `quality`, `difficulty`, `tags`, `course_raw`, `thumbs_up`/`thumbs_down`.
+- **SchoolRating** – `date`, `comment`, `overall`, `category_ratings`, `thumbs_up`/`thumbs_down`.
 - **\*SearchResult** / **\*RatingsPage** – Paginated results with `has_next_page` and `next_cursor` where applicable.
 
 ## Running the examples
