@@ -1,5 +1,18 @@
 /**
- * High-level client for RateMyProfessors.
+ * High-level client for the RateMyProfessors (RMP) website and GraphQL API.
+ *
+ * This client uses two data sources:
+ * 1. **HTML pages** – Professor and school profile pages (and search pages) embed a
+ *    normalized store in `window.__RELAY_STORE__`. We fetch the HTML, extract the
+ *    store via {@link extractRelayStore}, and parse it with helpers from relayStore
+ *    to get the first page of data (e.g. first 5 ratings).
+ * 2. **GraphQL API** – For pagination (e.g. "Load More" ratings) we send queries to
+ *    the RMP GraphQL endpoint. We also prefetch all ratings on first load and cache
+ *    them so subsequent "Load More" requests don't trigger new network calls.
+ *
+ * All requests go through {@link HttpClient}, which applies rate limiting, retries,
+ * and timeouts. Call {@link RMPClient.close} when done to release resources and
+ * clear in-memory caches.
  */
 
 import type { RMPClientConfig } from "./config.js";
@@ -41,8 +54,10 @@ import {
   resolveRefs,
 } from "./relayStore.js";
 
+/** Generic key-value map used for raw RMP/GraphQL payloads and parsed nodes. */
 type Mapping = Record<string, unknown>;
 
+/** GraphQL query used to fetch a page of professor ratings (and professor summary) by cursor. */
 const TEACHER_RATINGS_QUERY = `
 query TeacherRatings($id: ID!, $first: Int!, $after: String) {
   node(id: $id) {
@@ -89,6 +104,7 @@ query TeacherRatings($id: ID!, $first: Int!, $after: String) {
 }
 `;
 
+/** GraphQL query used to fetch a page of school ratings (and school summary) by cursor. */
 const SCHOOL_RATINGS_QUERY = `
 query SchoolRatings($id: ID!, $first: Int!, $after: String) {
   node(id: $id) {
@@ -129,14 +145,26 @@ query SchoolRatings($id: ID!, $first: Int!, $after: String) {
 }
 `;
 
+/**
+ * Builds the Relay global ID for a teacher node (base64 of "Teacher-&lt;id&gt;").
+ * Used as the `id` variable in GraphQL queries for professor ratings.
+ */
 function teacherNodeId(professorId: string): string {
   return btoa(`Teacher-${professorId}`);
 }
 
+/**
+ * Builds the Relay global ID for a school node (base64 of "School-&lt;id&gt;").
+ * Used in GraphQL queries for school ratings.
+ */
 function schoolNodeId(schoolId: string): string {
   return btoa(`School-${schoolId}`);
 }
 
+/**
+ * Formats a location from a record: use `location` string if present and non-empty,
+ * otherwise build from city, state, country. Returns null if nothing is available.
+ */
 function formatLocation(record: Mapping): string | null {
   const loc = record.location;
   if (typeof loc === "string" && loc.trim()) return loc.trim();
@@ -146,6 +174,7 @@ function formatLocation(record: Mapping): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
+/** Normalizes a school record to a minimal { id, name, location } object for embedding. */
 function schoolRecordToLocationDict(record: Mapping): Mapping {
   return {
     id: record.id ?? record.__id,
@@ -154,21 +183,26 @@ function schoolRecordToLocationDict(record: Mapping): Mapping {
   };
 }
 
+/** Parses an unknown value to a finite number; returns null for null/undefined/NaN. */
 function safeFloat(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
 
+/** Parses an unknown value to an integer; returns null for null/undefined/non-integer. */
 function safeInt(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isInteger(n) ? n : null;
 }
 
+/**
+ * Parses RMP date strings (e.g. "2026-03-03 21:20:35 +0000 UTC") to a Date.
+ * Uses only the date part and UTC midnight; invalid input yields current date.
+ */
 function parseDate(dateStr: unknown): Date {
   if (typeof dateStr === "string") {
-    // RMP sends "2026-03-03 21:20:35 +0000 UTC"; use date part only
     const datePart = dateStr.includes(" ") ? dateStr.split(" ")[0] : dateStr;
     const d = new Date(datePart + "T00:00:00Z");
     if (!Number.isNaN(d.getTime())) return d;
@@ -176,6 +210,10 @@ function parseDate(dateStr: unknown): Date {
   return new Date();
 }
 
+/**
+ * Builds a rating distribution (1–5 stars -> count and percentage) from raw store data.
+ * Accepts objects with r1..r5 keys, numeric keys 1..5, or arrays of 5 counts.
+ */
 function buildRatingDistribution(
   raw: unknown
 ): Record<number, RatingDistributionBucket> | null {
@@ -222,6 +260,12 @@ function buildRatingDistribution(
   return result;
 }
 
+/**
+ * Main client for the RateMyProfessors API.
+ *
+ * Use {@link createConfig} or {@link configFromEnv} to build config, then instantiate.
+ * All methods are async; call {@link close} when finished to release HTTP and caches.
+ */
 export class RMPClient {
   private _config: RMPClientConfig;
   private _http: HttpClient | null = null;
@@ -240,6 +284,7 @@ export class RMPClient {
     this._config = config ?? configFromEnv();
   }
 
+  /** Lazily creates and returns the shared HTTP client (rate-limited, retrying). */
   private _getClient(): HttpClient {
     if (!this._http) {
       this._http = new HttpClient(this._config);
@@ -247,6 +292,10 @@ export class RMPClient {
     return this._http;
   }
 
+  /**
+   * Closes the HTTP client (aborts in-flight requests) and clears rating caches.
+   * Safe to call multiple times.
+   */
   async close(): Promise<void> {
     if (this._http) {
       this._http.close();
@@ -256,18 +305,26 @@ export class RMPClient {
     this._schoolRatingsCache.clear();
   }
 
-  /** Send a raw JSON/GraphQL-style payload to the RMP backend. */
+  /**
+   * Sends a raw JSON payload (e.g. GraphQL query + variables) to the RMP GraphQL endpoint.
+   * Use for custom queries or when the high-level methods don't expose what you need.
+   *
+   * @param payload - Object with at least `query` and optionally `variables`, etc.
+   * @returns The response `data` object (or full response if you need it).
+   */
   async rawQuery(payload: Mapping): Promise<Record<string, unknown>> {
     return this._getClient().postJson("", payload as Record<string, unknown>);
   }
 
   // ---- School search ----------------------------------------------------------
 
+  /** Builds the school search page URL with query in `q`. */
   private _searchSchoolsPageUrl(query: string): string {
     const base = this._config.search_schools_page_url.replace(/\/$/, "");
     return `${base}?q=${encodeURIComponent(query)}`;
   }
 
+  /** Fetches the school search page HTML and extracts __RELAY_STORE__. */
   private async _fetchRelayStoreForSearchSchools(
     query: string
   ): Promise<Mapping> {
@@ -282,7 +339,13 @@ export class RMPClient {
     }
   }
 
-  /** Search schools by name. */
+  /**
+   * Searches schools by name. Fetches the search page HTML and parses the embedded store.
+   *
+   * @param query - Search string (e.g. "Stanford").
+   * @param options - Optional page and page_size (page_size is the requested size; result length may be less).
+   * @returns Schools on the first page plus total/has_next_page/next_cursor when available.
+   */
   async searchSchools(
     query: string,
     options: { page?: number; page_size?: number } = {}
@@ -328,11 +391,13 @@ export class RMPClient {
 
   // ---- Professor search / listing --------------------------------------------
 
+  /** Builds the professor search page URL with query in `q`. */
   private _searchProfessorsPageUrl(query: string): string {
     const base = this._config.search_professors_page_url.replace(/\/$/, "");
     return `${base}?q=${encodeURIComponent(query)}`;
   }
 
+  /** Fetches the professor search page HTML and extracts __RELAY_STORE__. */
   private async _fetchRelayStoreForSearchProfessors(
     query: string
   ): Promise<Mapping> {
@@ -347,7 +412,14 @@ export class RMPClient {
     }
   }
 
-  /** Search professors by name and optional school. */
+  /**
+   * Searches professors by name; optionally restricted to a school via school_id.
+   * Fetches the search page and parses the embedded store for the first page of results.
+   *
+   * @param query - Search string (e.g. "Smith").
+   * @param options - Optional school_id, page, page_size.
+   * @returns Professors on the current page plus total/has_next_page/next_cursor when available.
+   */
   async searchProfessors(
     query: string,
     options: {
@@ -395,7 +467,12 @@ export class RMPClient {
     };
   }
 
-  /** List professors for a given school. */
+  /**
+   * Lists professors for a given school (convenience around searchProfessors with school_id).
+   *
+   * @param school_id - Numeric school id.
+   * @param options - Optional query, page, page_size.
+   */
   async listProfessorsForSchool(
     school_id: number,
     options: {
@@ -411,7 +488,10 @@ export class RMPClient {
     });
   }
 
-  /** Iterate all professors for a school (async generator). */
+  /**
+   * Async generator that yields all professors for a school, page by page.
+   * Stops when a page returns no professors or has_next_page is false.
+   */
   async *iterProfessorsForSchool(
     school_id: number,
     options: { query?: string | null; page_size?: number } = {}
@@ -435,11 +515,13 @@ export class RMPClient {
 
   // ---- Professor details + ratings -------------------------------------------
 
+  /** Builds the professor profile page URL for a given id. */
   private _professorPageUrl(professorId: string): string {
     const base = this._config.professors_page_url.replace(/\/$/, "");
     return `${base}/${professorId}`;
   }
 
+  /** Fetches the professor profile page HTML and extracts __RELAY_STORE__. */
   private async _fetchRelayStoreForProfessor(
     professorId: string
   ): Promise<Mapping> {
@@ -454,7 +536,12 @@ export class RMPClient {
     }
   }
 
-  /** Fetch detailed information about a single professor. */
+  /**
+   * Fetches a single professor by id. Loads the profile page and parses the store.
+   *
+   * @param professorId - Legacy numeric id or string id from search/RMP URL.
+   * @returns The professor with school, tags, rating_distribution when present.
+   */
   async getProfessor(professorId: string): Promise<Professor> {
     const store = await this._fetchRelayStoreForProfessor(professorId);
     const record = getProfessorNode(store, professorId);
@@ -467,6 +554,7 @@ export class RMPClient {
     return this._parseProfessorNode(node);
   }
 
+  /** Fetches one page of professor ratings via the GraphQL API (cursor-based). */
   private async _fetchProfessorRatingsViaGraphql(
     professorId: string,
     options: { after?: string | null; first?: number }
@@ -543,7 +631,16 @@ export class RMPClient {
     };
   }
 
-  /** Fetch a single page of ratings for a professor (5 at a time by default; "Load More" is served from cache, no extra network request). */
+  /**
+   * Fetches a single page of ratings for a professor. Default is 5 per page.
+   * On first call we load the profile page and, if there are more ratings, prefetch all
+   * via GraphQL and cache them; subsequent calls with the returned next_cursor are
+   * served from cache (no extra network request), matching the site’s "Load More" behavior.
+   *
+   * @param professorId - Professor id from search or URL.
+   * @param options - cursor: use page.next_cursor for next page; page_size: default 5.
+   * @returns Professor plus ratings for this page and has_next_page/next_cursor.
+   */
   async getProfessorRatingsPage(
     professorId: string,
     options: { cursor?: string | null; page_size?: number } = {}
@@ -643,7 +740,11 @@ export class RMPClient {
     };
   }
 
-  /** Iterate ratings for a professor (async generator). */
+  /**
+   * Async generator that yields all ratings for a professor. Uses getProfessorRatingsPage
+   * under the hood (so first load may prefetch all and serve from cache). Optional
+   * `since` stops yielding when a rating’s date is before that date.
+   */
   async *iterProfessorRatings(
     professorId: string,
     options: { page_size?: number; since?: Date | null } = {}
@@ -667,16 +768,19 @@ export class RMPClient {
 
   // ---- School details + ratings -----------------------------------------------
 
+  /** Builds the school profile page URL. */
   private _schoolPageUrl(schoolId: string): string {
     const base = this._config.schools_page_url.replace(/\/$/, "");
     return `${base}/${schoolId}`;
   }
 
+  /** Builds the single-school compare page URL. */
   private _compareSchoolPageUrl(schoolId: string): string {
     const base = this._config.compare_schools_page_url.replace(/\/$/, "");
     return `${base}/${schoolId}`;
   }
 
+  /** Builds the two-school compare page URL. */
   private _compareSchoolsPageUrl(
     schoolId1: string,
     schoolId2: string
@@ -685,6 +789,7 @@ export class RMPClient {
     return `${base}/${schoolId1}/${schoolId2}`;
   }
 
+  /** Fetches the school (or compare) page HTML and extracts __RELAY_STORE__. */
   private async _fetchRelayStoreForSchool(
     schoolId: string,
     options: { useCompareUrl?: boolean } = {}
@@ -702,6 +807,7 @@ export class RMPClient {
     }
   }
 
+  /** Fetches the compare-two-schools page HTML and extracts __RELAY_STORE__. */
   private async _fetchRelayStoreForCompareSchools(
     schoolId1: string,
     schoolId2: string
@@ -717,7 +823,12 @@ export class RMPClient {
     }
   }
 
-  /** Fetch detailed information about a single school. */
+  /**
+   * Fetches a single school by id. Optionally uses the compare page URL for the store.
+   *
+   * @param schoolId - String id from search or RMP URL.
+   * @param options - use_compare_page: true to load from compare page.
+   */
   async getSchool(
     schoolId: string,
     options: { use_compare_page?: boolean } = {}
@@ -735,7 +846,10 @@ export class RMPClient {
     return this._parseSchoolNode(node);
   }
 
-  /** Fetch and compare two schools. */
+  /**
+   * Fetches two schools in one request using the compare page. Both schools
+   * are parsed from the same embedded store.
+   */
   async getCompareSchools(
     schoolId1: string,
     schoolId2: string
@@ -762,6 +876,7 @@ export class RMPClient {
     };
   }
 
+  /** Fetches one page of school ratings via the GraphQL API (cursor-based). */
   private async _fetchSchoolRatingsViaGraphql(
     schoolId: string,
     options: { after?: string | null; first?: number }
@@ -818,7 +933,14 @@ export class RMPClient {
     };
   }
 
-  /** Fetch a single page of ratings for a school (5 at a time by default; "Show More" is served from cache, no extra network request). */
+  /**
+   * Fetches a single page of ratings for a school. Same caching and 5-per-page default
+   * as professor ratings; "Show More" uses the returned next_cursor and is served from cache.
+   *
+   * @param schoolId - School id from search or URL.
+   * @param options - cursor: use page.next_cursor for next page; page_size: default 5.
+   * @returns School plus ratings for this page and has_next_page/next_cursor.
+   */
   async getSchoolRatingsPage(
     schoolId: string,
     options: { cursor?: string | null; page_size?: number } = {}
@@ -915,7 +1037,10 @@ export class RMPClient {
     };
   }
 
-  /** Iterate ratings for a school (async generator). */
+  /**
+   * Async generator that yields all ratings for a school. Optional `since` stops
+   * when a rating’s date is before that date.
+   */
   async *iterSchoolRatings(
     schoolId: string,
     options: { page_size?: number; since?: Date | null } = {}
@@ -938,7 +1063,10 @@ export class RMPClient {
   }
 
   // ---- Internal relay-to-node converters --------------------------------------
+  // These convert raw store/GraphQL records to a normalized node shape that the
+  // _parse* methods expect (snake_case, consistent field names).
 
+  /** Converts a professor/teacher store record (and refs) to a flat node for parsing. */
   private _relayProfessorToNode(
     store: Mapping,
     record: Mapping
@@ -1000,6 +1128,7 @@ export class RMPClient {
     return node;
   }
 
+  /** Converts a single rating record (store or GraphQL edge.node) to a normalized node. */
   private _relayRatingToNode(record: Mapping): Mapping {
     const out: Mapping = {
       date: record.date,
@@ -1035,6 +1164,7 @@ export class RMPClient {
     return out;
   }
 
+  /** Converts a school store record (and optional summary ref) to a flat node. */
   private _relaySchoolToNode(store: Mapping, record: Mapping): Mapping {
     const node: Mapping = {
       id: record.id ?? record.__id ?? record.legacyId,
@@ -1090,7 +1220,9 @@ export class RMPClient {
   }
 
   // ---- Internal parsers -------------------------------------------------------
+  // Map normalized nodes to the public model types (Professor, Rating, School, SchoolRating).
 
+  /** Maps a normalized professor node to the public Professor type. */
   private _parseProfessorNode(node: Mapping): Professor {
     const schoolInfo = node.school;
     let school: School | null = null;
@@ -1128,6 +1260,7 @@ export class RMPClient {
     };
   }
 
+  /** Maps a normalized rating node to the public Rating type. */
   private _parseRatingNode(node: Mapping): Rating {
     const ratingDate = parseDate(node.date);
 
@@ -1165,6 +1298,7 @@ export class RMPClient {
     };
   }
 
+  /** Maps a normalized school node to the public School type. */
   private _parseSchoolNode(node: Mapping): School {
     const locationRating =
       safeFloat(node.location_rating) ??
@@ -1196,6 +1330,7 @@ export class RMPClient {
     };
   }
 
+  /** Maps a raw school rating record (store or GraphQL) to the public SchoolRating type. */
   private _parseSchoolRatingNode(record: Mapping): SchoolRating {
     const ratingDate = parseDate(record.date);
 

@@ -1,7 +1,14 @@
 /**
- * Errors raised by the RMP client.
+ * Error types raised by the RateMyProfessors client.
+ *
+ * All client-specific errors extend {@link RMPError}. Use `instanceof` or
+ * `error.name` to distinguish configuration, HTTP, rate-limit, retry, API, and parsing errors.
  */
 
+/**
+ * Base error for all RMP client failures.
+ * Subclasses add fields (e.g. status_code, last_error) and set their own `name`.
+ */
 export class RMPError extends Error {
   constructor(message: string) {
     super(message);
@@ -10,6 +17,9 @@ export class RMPError extends Error {
   }
 }
 
+/**
+ * Thrown when client configuration is invalid (e.g. missing required URL).
+ */
 export class ConfigurationError extends RMPError {
   constructor(message: string) {
     super(message);
@@ -18,6 +28,10 @@ export class ConfigurationError extends RMPError {
   }
 }
 
+/**
+ * Thrown when the server returns a non-2xx HTTP status.
+ * Use `status_code`, `url`, and optional `body` to inspect the response.
+ */
 export class HttpError extends RMPError {
   constructor(
     public readonly status_code: number,
@@ -30,6 +44,10 @@ export class HttpError extends RMPError {
   }
 }
 
+/**
+ * Thrown when the local token-bucket rate limiter would exceed the configured limit.
+ * The client blocks until a token is available by default; this is used when using non-blocking mode.
+ */
 export class RateLimitError extends RMPError {
   constructor(message: string = "Local rate limit exceeded") {
     super(message);
@@ -38,6 +56,10 @@ export class RateLimitError extends RMPError {
   }
 }
 
+/**
+ * Thrown when all retries are exhausted (e.g. repeated 5xx or network errors).
+ * The last error that caused the final failure is available as `last_error`.
+ */
 export class RetryError extends RMPError {
   constructor(public readonly last_error: Error) {
     super(`Request failed after retries: ${String(last_error)}`);
@@ -46,6 +68,10 @@ export class RetryError extends RMPError {
   }
 }
 
+/**
+ * Thrown when the RMP GraphQL API returns an `errors` array in the response body.
+ * Optional `details` holds the raw error payload for inspection.
+ */
 export class RMPAPIError extends RMPError {
   constructor(
     message: string,
@@ -57,6 +83,10 @@ export class RMPAPIError extends RMPError {
   }
 }
 
+/**
+ * Thrown when parsing fails: e.g. missing __RELAY_STORE__ in HTML,
+ * missing expected record in the store, or invalid response shape.
+ */
 export class ParsingError extends RMPError {
   constructor(message: string) {
     super(message);

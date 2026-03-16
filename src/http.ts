@@ -1,11 +1,20 @@
 /**
- * HTTP client with retries, rate limiting, and error mapping.
+ * HTTP client used by the RMP client: retries, rate limiting, and error mapping.
+ *
+ * - All requests go through a token-bucket rate limiter (see {@link TokenBucket}).
+ * - Failed requests (5xx or network errors) are retried up to config.max_retries.
+ * - Non-2xx responses become {@link HttpError}; GraphQL `errors` in the body become {@link RMPAPIError}.
+ * - Timeouts use AbortController; call {@link close} to cancel in-flight requests.
  */
 
 import type { RMPClientConfig } from "./config.js";
 import { HttpError, RetryError, RMPAPIError } from "./errors.js";
 import { TokenBucket } from "./rateLimit.js";
 
+/**
+ * Low-level HTTP client with retries, rate limiting, and typed errors.
+ * Typically you use {@link RMPClient}, which uses this internally.
+ */
 export class HttpClient {
   private _config: RMPClientConfig;
   private _bucket: TokenBucket;
@@ -19,6 +28,10 @@ export class HttpClient {
     );
   }
 
+  /**
+   * Merges config default headers with optional extra headers.
+   * User-Agent is always set from config.
+   */
   private _headers(extra?: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = {
       ...this._config.default_headers,
@@ -30,6 +43,10 @@ export class HttpClient {
     return headers;
   }
 
+  /**
+   * Resolves a path (or empty string) against the config base_url.
+   * Empty path returns base_url; leading slashes are normalized.
+   */
   private _url(path: string): string {
     if (path === "") return this._config.base_url;
     const base = this._config.base_url.replace(/\/$/, "");
@@ -37,6 +54,17 @@ export class HttpClient {
     return `${base}/${p}`;
   }
 
+  /**
+   * Sends a POST request with JSON body. Respects rate limit, timeout, and retries.
+   * On success returns the parsed JSON object. If the response contains an `errors`
+   * property (RMP GraphQL style), throws {@link RMPAPIError}. On non-2xx status
+   * throws {@link HttpError}; after exhausting retries throws {@link RetryError}.
+   *
+   * @param path - Path or "" for base URL.
+   * @param payload - Object to send as JSON body.
+   * @param headers - Optional extra headers.
+   * @returns The response body as a record (no `errors` key on success).
+   */
   async postJson(
     path: string,
     payload: Record<string, unknown>,
@@ -95,6 +123,15 @@ export class HttpClient {
     throw new RetryError(lastError ?? new Error("Unknown error"));
   }
 
+  /**
+   * Sends a GET request for HTML or text. Same rate limit, timeout, and retry
+   * behavior as {@link postJson}. Use for professor/school/search pages where
+   * we extract __RELAY_STORE__ from the response.
+   *
+   * @param url - Full URL (not resolved against base_url).
+   * @param headers - Optional extra headers.
+   * @returns Response body as string.
+   */
   async getHtml(
     url: string,
     headers?: Record<string, string>
@@ -143,6 +180,10 @@ export class HttpClient {
     throw new RetryError(lastError ?? new Error("Unknown error"));
   }
 
+  /**
+   * Aborts any in-flight request (e.g. when shutting down the client).
+   * Safe to call multiple times.
+   */
   close(): void {
     this._abortController?.abort();
   }

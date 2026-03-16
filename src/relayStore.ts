@@ -1,5 +1,11 @@
 /**
- * Extract and parse window.__RELAY_STORE__ from RMP page HTML.
+ * Extract and parse `window.__RELAY_STORE__` from RMP page HTML.
+ *
+ * RateMyProfessors embeds a Relay-style normalized store in the initial HTML.
+ * This module parses that store (a single JSON object) and provides helpers
+ * to find professor/school records, their ratings connections, and search
+ * result connections. The client uses these to build typed School/Professor/Rating
+ * models without calling the GraphQL API for the first page of data.
  */
 
 type Store = Record<string, unknown>;
@@ -9,12 +15,15 @@ type StoreRecord = Record<string, unknown>;
 // Core utilities
 // ---------------------------------------------------------------------------
 
+/**
+ * Extracts the __RELAY_STORE__ JSON object from the page HTML.
+ * Locates the assignment after the marker and parses the outermost `{...}`.
+ *
+ * @param html - Full HTML of an RMP page (professor, school, or search).
+ * @returns The parsed store (keyed by record id; values are records or refs).
+ * @throws Error if the marker is missing or the JSON is unclosed.
+ */
 export function extractRelayStore(html: string): Store {
-  /*
-  This function extracts the relay store from the HTML of a RMP page.
-  It is used to get the data for the professor and school pages.
-  */
-
   const marker = "window.__RELAY_STORE__";
   const markerIdx = html.indexOf(marker);
   if (markerIdx === -1) {
@@ -67,11 +76,11 @@ export function extractRelayStore(html: string): Store {
   return JSON.parse(html.slice(start, end)) as Store;
 }
 
+/**
+ * Type guard: true if the value is a Relay-style record reference `{ __ref: string }`.
+ * Such refs point to another key in the store instead of embedding the record inline.
+ */
 export function isRecordRef(value: unknown): value is { __ref: string } {
-  /*
-  This function checks if the value is a record reference.
-  It is used to check if the value is a reference to a record in the store.
-  */
   return (
     typeof value === "object" &&
     value !== null &&
@@ -80,6 +89,13 @@ export function isRecordRef(value: unknown): value is { __ref: string } {
   );
 }
 
+/**
+ * Resolves a single record reference to the actual record in the store.
+ *
+ * @param store - The full __RELAY_STORE__ object.
+ * @param ref - A reference object `{ __ref: "<recordId>" }`.
+ * @returns The record at store[recordId], or null if missing/invalid.
+ */
 export function resolveRef(
   store: Store,
   ref: { __ref: string },
@@ -92,6 +108,14 @@ export function resolveRef(
     : null;
 }
 
+/**
+ * Resolves multiple store keys to an array of records.
+ * Skips missing or non-object entries.
+ *
+ * @param store - The full __RELAY_STORE__ object.
+ * @param refIds - Array of record IDs (keys in the store).
+ * @returns Array of records that exist and are objects.
+ */
 export function resolveRefs(store: Store, refIds: string[]): StoreRecord[] {
   const out: StoreRecord[] = [];
   for (const refId of refIds ?? []) {
@@ -108,6 +132,14 @@ export function resolveRefs(store: Store, refIds: string[]): StoreRecord[] {
 // Professor / Teacher
 // ---------------------------------------------------------------------------
 
+/**
+ * Finds the professor (or teacher) record in the store by legacy id or id.
+ * Searches all records with __typename "Professor" or "Teacher".
+ *
+ * @param store - The full __RELAY_STORE__ (e.g. from a professor page).
+ * @param professorId - Legacy numeric id or string id of the professor.
+ * @returns The matching record or null.
+ */
 export function getProfessorNode(
   store: Store,
   professorId: string,
@@ -126,6 +158,7 @@ export function getProfessorNode(
   return null;
 }
 
+/** Finds the key on a professor record that holds the ratings connection (ref or inline). */
 function getRatingsConnectionRef(
   professorRecord: StoreRecord,
 ): { __ref: string } | null {
@@ -139,6 +172,10 @@ function getRatingsConnectionRef(
   return null;
 }
 
+/**
+ * Converts a connection's edges (array or __refs) into an array of rating records.
+ * Handles both inline edges and refs to edge records; filters by __typename.
+ */
 function edgesToRatingRecords(
   store: Store,
   edgesValue: unknown,
@@ -188,6 +225,7 @@ function edgesToRatingRecords(
   return ratings;
 }
 
+/** Returns the ratings connection object for a professor (ref resolved or inline edges). */
 function getProfessorRatingsConnection(
   store: Store,
   professorRecord: StoreRecord,
@@ -205,6 +243,10 @@ function getProfessorRatingsConnection(
   return null;
 }
 
+/**
+ * Returns the pageInfo object for a professor's ratings connection (hasNextPage, endCursor).
+ * Used to decide whether to fetch more ratings via GraphQL and with which cursor.
+ */
 export function getProfessorRatingsConnectionPageInfo(
   store: Store,
   professorRecord: StoreRecord,
@@ -217,6 +259,10 @@ export function getProfessorRatingsConnectionPageInfo(
   return info && typeof info === "object" ? info : null;
 }
 
+/**
+ * Returns the array of rating records for a professor from the store.
+ * Used to build the first page of ratings from the initial HTML (no GraphQL).
+ */
 export function getRatingsFromStore(
   store: Store,
   professorRecord: StoreRecord,
@@ -226,6 +272,10 @@ export function getRatingsFromStore(
   return edgesToRatingRecords(store, conn.edges);
 }
 
+/**
+ * Fallback: returns all records in the store whose __typename is a professor rating type.
+ * Used when the professor record has no ratings connection (e.g. alternate store shape).
+ */
 export function getAllRatingRecords(store: Store): StoreRecord[] {
   const out: StoreRecord[] = [];
   const ratingTypenames = new Set(["Rating", "ProfessorRating", "Review"]);
@@ -242,6 +292,14 @@ export function getAllRatingRecords(store: Store): StoreRecord[] {
 // School
 // ---------------------------------------------------------------------------
 
+/**
+ * Finds the school (or university) record in the store by id or legacy id.
+ * Also checks base64-decoded keys and a single-school fallback for compare pages.
+ *
+ * @param store - The full __RELAY_STORE__ (e.g. from a school or compare page).
+ * @param schoolId - String id of the school.
+ * @returns The matching record or null.
+ */
 export function getSchoolNode(
   store: Store,
   schoolId: string,
@@ -276,6 +334,7 @@ export function getSchoolNode(
   return null;
 }
 
+/** Finds the key on a school record that holds the ratings connection. */
 function getSchoolRatingsConnectionRef(
   schoolRecord: StoreRecord,
 ): { __ref: string } | null {
@@ -289,6 +348,7 @@ function getSchoolRatingsConnectionRef(
   return null;
 }
 
+/** Converts a school ratings connection's edges into an array of rating records. */
 function edgesToSchoolRatingRecords(
   store: Store,
   edgesValue: unknown,
@@ -343,6 +403,7 @@ function edgesToSchoolRatingRecords(
   return ratings;
 }
 
+/** Returns the ratings connection object for a school. */
 function getSchoolRatingsConnection(
   store: Store,
   schoolRecord: StoreRecord,
@@ -361,6 +422,9 @@ function getSchoolRatingsConnection(
   return null;
 }
 
+/**
+ * Returns the pageInfo for a school's ratings connection (hasNextPage, endCursor).
+ */
 export function getSchoolRatingsConnectionPageInfo(
   store: Store,
   schoolRecord: StoreRecord,
@@ -373,6 +437,9 @@ export function getSchoolRatingsConnectionPageInfo(
   return info && typeof info === "object" ? info : null;
 }
 
+/**
+ * Returns the array of school rating records from the store for the given school.
+ */
 export function getSchoolRatingsFromStore(
   store: Store,
   schoolRecord: StoreRecord,
@@ -382,6 +449,9 @@ export function getSchoolRatingsFromStore(
   return edgesToSchoolRatingRecords(store, conn.edges);
 }
 
+/**
+ * Fallback: returns all records in the store that are school rating types.
+ */
 export function getAllSchoolRatingRecords(store: Store): StoreRecord[] {
   const out: StoreRecord[] = [];
   const schoolTypenames = new Set([
@@ -403,6 +473,10 @@ export function getAllSchoolRatingRecords(store: Store): StoreRecord[] {
 // Professor search page (/search/professors/?q=...)
 // ---------------------------------------------------------------------------
 
+/**
+ * Finds the teacher search connection in the store (client:root -> newSearch -> teachers(...)).
+ * Returns the connection object that holds edges and pageInfo for the current search results.
+ */
 export function getTeacherSearchConnection(store: Store): StoreRecord | null {
   const root = store["client:root"];
   if (typeof root !== "object" || root === null) return null;
@@ -419,6 +493,9 @@ export function getTeacherSearchConnection(store: Store): StoreRecord | null {
   return null;
 }
 
+/**
+ * Converts the search connection's edges into an array of teacher/professor records.
+ */
 export function edgesToTeacherRecords(
   store: Store,
   edgesValue: unknown,
@@ -473,6 +550,7 @@ export function edgesToTeacherRecords(
   return teachers;
 }
 
+/** Returns the total result count from a teacher search connection, if present. */
 export function getTeacherSearchResultCount(
   connection: StoreRecord,
 ): number | null {
@@ -480,6 +558,7 @@ export function getTeacherSearchResultCount(
   return val != null ? Number(val) : null;
 }
 
+/** Returns the pageInfo record (hasNextPage, endCursor) for the teacher search connection. */
 export function getTeacherSearchPageInfo(
   store: Store,
   connection: StoreRecord,
@@ -494,6 +573,9 @@ export function getTeacherSearchPageInfo(
 // School search page (/search/schools?q=...)
 // ---------------------------------------------------------------------------
 
+/**
+ * Finds the school search connection in the store (client:root -> newSearch -> schools(...)).
+ */
 export function getSchoolSearchConnection(store: Store): StoreRecord | null {
   const root = store["client:root"];
   if (typeof root !== "object" || root === null) return null;
@@ -510,6 +592,9 @@ export function getSchoolSearchConnection(store: Store): StoreRecord | null {
   return null;
 }
 
+/**
+ * Converts the school search connection's edges into an array of school records.
+ */
 export function edgesToSchoolRecords(
   store: Store,
   edgesValue: unknown,
@@ -564,6 +649,7 @@ export function edgesToSchoolRecords(
   return schools;
 }
 
+/** Returns the total result count from a school search connection, if present. */
 export function getSchoolSearchResultCount(
   connection: StoreRecord,
 ): number | null {
@@ -571,6 +657,7 @@ export function getSchoolSearchResultCount(
   return val != null ? Number(val) : null;
 }
 
+/** Returns the pageInfo record for the school search connection. */
 export function getSchoolSearchPageInfo(
   store: Store,
   connection: StoreRecord,
