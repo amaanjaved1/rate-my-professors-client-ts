@@ -1,18 +1,10 @@
 /**
- * High-level client for the RateMyProfessors (RMP) website and GraphQL API.
+ * High-level client for the RateMyProfessors (RMP) GraphQL API.
  *
- * This client uses two data sources:
- * 1. **HTML pages** – Professor and school profile pages (and search pages) embed a
- *    normalized store in `window.__RELAY_STORE__`. We fetch the HTML, extract the
- *    store via {@link extractRelayStore}, and parse it with helpers from relayStore
- *    to get the first page of data (e.g. first 5 ratings).
- * 2. **GraphQL API** – For pagination (e.g. "Load More" ratings) we send queries to
- *    the RMP GraphQL endpoint. We also prefetch all ratings on first load and cache
- *    them so subsequent "Load More" requests don't trigger new network calls.
+ * All data is fetched via POST to https://www.ratemyprofessors.com/graphql.
+ * Rate limiting, retries, and timeouts are handled by {@link HttpClient}.
  *
- * All requests go through {@link HttpClient}, which applies rate limiting, retries,
- * and timeouts. Call {@link RMPClient.close} when done to release resources and
- * clear in-memory caches.
+ * Call {@link RMPClient.close} when done to release resources and clear caches.
  */
 
 import type { RMPClientConfig } from "./config.js";
@@ -25,41 +17,175 @@ import type {
   ProfessorRatingsPage,
   ProfessorSearchResult,
   Rating,
-  RatingDistributionBucket,
   School,
   SchoolRating,
   SchoolRatingsPage,
   SchoolSearchResult,
 } from "./models.js";
-import {
-  extractRelayStore,
-  getAllRatingRecords,
-  getAllSchoolRatingRecords,
-  getProfessorNode,
-  getProfessorRatingsConnectionPageInfo,
-  getRatingsFromStore,
-  getSchoolNode,
-  getSchoolRatingsConnectionPageInfo,
-  getSchoolRatingsFromStore,
-  getSchoolSearchConnection,
-  getSchoolSearchPageInfo,
-  getSchoolSearchResultCount,
-  getTeacherSearchConnection,
-  getTeacherSearchPageInfo,
-  getTeacherSearchResultCount,
-  edgesToSchoolRecords,
-  edgesToTeacherRecords,
-  isRecordRef,
-  resolveRef,
-  resolveRefs,
-} from "./relayStore.js";
 
-/** Generic key-value map used for raw RMP/GraphQL payloads and parsed nodes. */
+/** Generic key-value map used for raw GraphQL payloads and parsed nodes. */
 type Mapping = Record<string, unknown>;
 
-/** GraphQL query used to fetch a page of professor ratings (and professor summary) by cursor. */
-const TEACHER_RATINGS_QUERY = `
-query TeacherRatings($id: ID!, $first: Int!, $after: String) {
+// ---------------------------------------------------------------------------
+// GraphQL operations
+// ---------------------------------------------------------------------------
+
+/** Professor ratings pagination (RMP's RatingsListQuery). */
+const RATINGS_LIST_QUERY = `
+query RatingsListQuery($count: Int!, $id: ID!, $courseFilter: String, $cursor: String) {
+  node(id: $id) {
+    __typename
+    ... on Teacher {
+      ...RatingsList_teacher_4pguUW
+      id
+    }
+  }
+}
+fragment RatingsList_teacher_4pguUW on Teacher {
+  id
+  legacyId
+  lastName
+  numRatings
+  school {
+    id
+    legacyId
+    name
+    city
+    state
+    avgRating
+    numRatings
+  }
+  ratings(first: $count, after: $cursor, courseFilter: $courseFilter) {
+    edges {
+      cursor
+      node {
+        id
+        __typename
+        comment
+        helpfulRating
+        clarityRating
+        difficultyRating
+        ratingTags
+        date
+        class
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+`;
+
+/** School ratings pagination (RMP's SchoolRatingsListQuery). */
+const SCHOOL_RATINGS_LIST_QUERY = `
+query SchoolRatingsListQuery($count: Int!, $id: ID!, $cursor: String) {
+  node(id: $id) {
+    ... on School {
+      id
+      name
+      city
+      state
+      country
+      ratings(first: $count, after: $cursor) {
+        edges {
+          cursor
+          node {
+            id
+            comment
+            date
+            reputationRating
+            locationRating
+            safetyRating
+            socialRating
+            opportunitiesRating
+            happinessRating
+            facilitiesRating
+            internetRating
+            foodRating
+            clubsRating
+            thumbsUpTotal
+            thumbsDownTotal
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}
+`;
+
+/** School search with pagination and result count (RMP's SchoolSearchResultsPageQuery). */
+const SCHOOL_SEARCH_RESULTS_QUERY = `
+query SchoolSearchResultsPageQuery($query: SchoolSearchQuery!, $count: Int!, $cursor: String) {
+  search: newSearch {
+    schools(query: $query, first: $count, after: $cursor) {
+      edges {
+        cursor
+        node {
+          id
+          legacyId
+          name
+          city
+          state
+          numRatings
+          avgRating
+          avgRatingRounded
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      resultCount
+    }
+  }
+}
+`;
+
+/** Teacher/professor search with pagination and result count (RMP's TeacherSearchResultsPageQuery). */
+const TEACHER_SEARCH_RESULTS_QUERY = `
+query TeacherSearchResultsPageQuery($query: TeacherSearchQuery!, $count: Int!, $cursor: String) {
+  search: newSearch {
+    teachers(query: $query, first: $count, after: $cursor) {
+      edges {
+        cursor
+        node {
+          id
+          legacyId
+          firstName
+          lastName
+          avgRating
+          numRatings
+          wouldTakeAgainPercent
+          avgDifficulty
+          department
+          school {
+            id
+            legacyId
+            name
+            city
+            state
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      resultCount
+    }
+  }
+}
+`;
+
+/** Fetch a single teacher by Relay global ID. */
+const GET_TEACHER_QUERY = `
+query GetTeacherQuery($id: ID!) {
   node(id: $id) {
     ... on Teacher {
       id
@@ -73,40 +199,19 @@ query TeacherRatings($id: ID!, $first: Int!, $after: String) {
       wouldTakeAgainPercent
       school {
         id
+        legacyId
         name
         city
         state
-      }
-      ratings(first: $first, after: $after) {
-        edges {
-          node {
-            comment
-            ratingTags
-            clarityRating
-            difficultyRating
-            date
-            grade
-            thumbsUpTotal
-            thumbsDownTotal
-            class
-            attendanceMandatory
-            textbookUse
-            isForCredit
-          }
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
       }
     }
   }
 }
 `;
 
-/** GraphQL query used to fetch a page of school ratings (and school summary) by cursor. */
-const SCHOOL_RATINGS_QUERY = `
-query SchoolRatings($id: ID!, $first: Int!, $after: String) {
+/** Fetch a single school by Relay global ID, including summary category ratings. */
+const GET_SCHOOL_QUERY = `
+query GetSchoolQuery($id: ID!) {
   node(id: $id) {
     ... on School {
       id
@@ -114,73 +219,55 @@ query SchoolRatings($id: ID!, $first: Int!, $after: String) {
       name
       city
       state
-      avgRatingRounded
+      country
       numRatings
-      ratings(first: $first, after: $after) {
-        edges {
-          node {
-            comment
-            date
-            reputationRating
-            locationRating
-            opportunitiesRating
-            facilitiesRating
-            internetRating
-            foodRating
-            clubsRating
-            socialRating
-            happinessRating
-            safetyRating
-            thumbsUpTotal
-            thumbsDownTotal
-          }
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
+      avgRatingRounded
+      summary {
+        campusCondition
+        campusLocation
+        careerOpportunities
+        clubAndEventActivities
+        foodQuality
+        internetSpeed
+        schoolReputation
+        schoolSafety
+        schoolSatisfaction
+        socialActivities
       }
     }
   }
 }
 `;
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 /**
- * Builds the Relay global ID for a teacher node (base64 of "Teacher-&lt;id&gt;").
- * Used as the `id` variable in GraphQL queries for professor ratings.
+ * Builds the Relay global ID for a teacher node (base64 of "Teacher-<id>").
+ * Used as the `id` variable in GraphQL queries for professor data.
  */
 function teacherNodeId(professorId: string): string {
   return btoa(`Teacher-${professorId}`);
 }
 
 /**
- * Builds the Relay global ID for a school node (base64 of "School-&lt;id&gt;").
- * Used in GraphQL queries for school ratings.
+ * Builds the Relay global ID for a school node (base64 of "School-<id>").
+ * Used in GraphQL queries for school data.
  */
 function schoolNodeId(schoolId: string): string {
   return btoa(`School-${schoolId}`);
 }
 
 /**
- * Formats a location from a record: use `location` string if present and non-empty,
- * otherwise build from city, state, country. Returns null if nothing is available.
+ * Builds a location string from city/state/country fields.
+ * Returns null when no location data is available.
  */
 function formatLocation(record: Mapping): string | null {
-  const loc = record.location;
-  if (typeof loc === "string" && loc.trim()) return loc.trim();
   const parts = [record.city, record.state, record.country].filter(
     (p): p is string => typeof p === "string" && p.trim() !== ""
   );
   return parts.length > 0 ? parts.join(", ") : null;
-}
-
-/** Normalizes a school record to a minimal { id, name, location } object for embedding. */
-function schoolRecordToLocationDict(record: Mapping): Mapping {
-  return {
-    id: record.id ?? record.__id,
-    name: record.name ?? "",
-    location: formatLocation(record),
-  };
 }
 
 /** Parses an unknown value to a finite number; returns null for null/undefined/NaN. */
@@ -199,7 +286,7 @@ function safeInt(value: unknown): number | null {
 
 /**
  * Parses RMP date strings (e.g. "2026-03-03 21:20:35 +0000 UTC") to a Date.
- * Uses only the date part and UTC midnight; invalid input yields current date.
+ * Uses only the date part at UTC midnight; invalid input yields the current date.
  */
 function parseDate(dateStr: unknown): Date {
   if (typeof dateStr === "string") {
@@ -210,71 +297,25 @@ function parseDate(dateStr: unknown): Date {
   return new Date();
 }
 
-/**
- * Builds a rating distribution (1–5 stars -> count and percentage) from raw store data.
- * Accepts objects with r1..r5 keys, numeric keys 1..5, or arrays of 5 counts.
- */
-function buildRatingDistribution(
-  raw: unknown
-): Record<number, RatingDistributionBucket> | null {
-  if (raw == null) return null;
-  const counts: Record<number, number> = {};
-
-  if (typeof raw === "object" && !Array.isArray(raw)) {
-    const obj = raw as Mapping;
-    const hasRKeys = [1, 2, 3, 4, 5].some(
-      (i) => obj[`r${i}`] != null
-    );
-    if (hasRKeys) {
-      for (let i = 1; i <= 5; i++) {
-        const v = obj[`r${i}`];
-        counts[i] = v != null ? Number(v) : 0;
-      }
-    } else {
-      for (const [k, v] of Object.entries(obj)) {
-        const level = Number(k);
-        if (Number.isInteger(level) && level >= 1 && level <= 5) {
-          counts[level] = v != null ? Number(v) : 0;
-        }
-      }
-    }
-  } else if (Array.isArray(raw) && raw.length >= 5) {
-    for (let i = 0; i < 5; i++) {
-      counts[i + 1] = raw[i] != null ? Number(raw[i]) : 0;
-    }
-  }
-
-  if (Object.keys(counts).length === 0) return null;
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  if (total <= 0) return null;
-
-  const result: Record<number, RatingDistributionBucket> = {};
-  for (const [level, count] of Object.entries(counts).sort(
-    ([a], [b]) => Number(a) - Number(b)
-  )) {
-    result[Number(level)] = {
-      count,
-      percentage: Math.round((100.0 * count) / total * 100) / 100,
-    };
-  }
-  return result;
-}
+// ---------------------------------------------------------------------------
+// Client
+// ---------------------------------------------------------------------------
 
 /**
- * Main client for the RateMyProfessors API.
+ * Main client for the RateMyProfessors GraphQL API.
  *
  * Use {@link createConfig} or {@link configFromEnv} to build config, then instantiate.
- * All methods are async; call {@link close} when finished to release HTTP and caches.
+ * All methods are async; call {@link close} when finished to release resources.
  */
 export class RMPClient {
   private _config: RMPClientConfig;
   private _http: HttpClient | null = null;
-  /** Cache of all ratings per professor (filled on first page load so "Load More" needs no extra request). */
+  /** Pre-fetched ratings per professor keyed by legacy numeric ID. */
   private _professorRatingsCache = new Map<
     string,
     { professor: Professor; ratings: Rating[] }
   >();
-  /** Cache of all ratings per school (filled on first page load so "Show More" needs no extra request). */
+  /** Pre-fetched ratings per school keyed by legacy numeric ID. */
   private _schoolRatingsCache = new Map<
     string,
     { school: School; ratings: SchoolRating[] }
@@ -284,7 +325,6 @@ export class RMPClient {
     this._config = config ?? configFromEnv();
   }
 
-  /** Lazily creates and returns the shared HTTP client (rate-limited, retrying). */
   private _getClient(): HttpClient {
     if (!this._http) {
       this._http = new HttpClient(this._config);
@@ -306,448 +346,293 @@ export class RMPClient {
   }
 
   /**
-   * Sends a raw JSON payload (e.g. GraphQL query + variables) to the RMP GraphQL endpoint.
-   * Use for custom queries or when the high-level methods don't expose what you need.
+   * Sends a raw GraphQL payload to the RMP endpoint.
+   * Use for custom queries when the high-level methods don't expose what you need.
    *
-   * @param payload - Object with at least `query` and optionally `variables`, etc.
-   * @returns The response `data` object (or full response if you need it).
+   * @param payload - Object with at least `query` and optionally `operationName`, `variables`.
+   * @returns The full parsed response body.
    */
   async rawQuery(payload: Mapping): Promise<Record<string, unknown>> {
     return this._getClient().postJson("", payload as Record<string, unknown>);
   }
 
-  // ---- School search ----------------------------------------------------------
-
-  /** Builds the school search page URL with query in `q`. */
-  private _searchSchoolsPageUrl(query: string): string {
-    const base = this._config.search_schools_page_url.replace(/\/$/, "");
-    return `${base}?q=${encodeURIComponent(query)}`;
-  }
-
-  /** Fetches the school search page HTML and extracts __RELAY_STORE__. */
-  private async _fetchRelayStoreForSearchSchools(
-    query: string
-  ): Promise<Mapping> {
-    const url = this._searchSchoolsPageUrl(query);
-    const html = await this._getClient().getHtml(url);
-    try {
-      return extractRelayStore(html);
-    } catch (e) {
-      throw new ParsingError(
-        `Failed to extract __RELAY_STORE__ from school search page: ${e}`
-      );
-    }
-  }
+  // ---- School search ---------------------------------------------------------
 
   /**
-   * Searches schools by name. Fetches the search page HTML and parses the embedded store.
+   * Searches schools by name (SchoolSearchResultsPageQuery).
    *
    * @param query - Search string (e.g. "Stanford").
-   * @param options - Optional page and page_size (page_size is the requested size; result length may be less).
-   * @returns Schools on the first page plus total/has_next_page/next_cursor when available.
+   * @param options - Optional page_size and cursor for pagination.
+   * @returns Schools for this page plus total/has_next_page/next_cursor.
    */
   async searchSchools(
     query: string,
-    options: { page?: number; page_size?: number } = {}
+    options: { page_size?: number; cursor?: string | null } = {}
   ): Promise<SchoolSearchResult> {
-    const page = options.page ?? 1;
-    const pageSize = options.page_size ?? 20;
+    const count = options.page_size ?? 20;
+    const cursor = options.cursor ?? "";
 
-    const store = await this._fetchRelayStoreForSearchSchools(query);
-    const conn = getSchoolSearchConnection(store);
+    const data = await this.rawQuery({
+      operationName: "SchoolSearchResultsPageQuery",
+      query: SCHOOL_SEARCH_RESULTS_QUERY,
+      variables: { query: { text: query }, count, cursor },
+    });
+
+    const search = ((data.data as Mapping) ?? {}).search as Mapping | undefined;
+    const conn = search?.schools as Mapping | undefined;
     if (!conn) {
       return {
         schools: [],
         total: null,
-        page,
-        page_size: pageSize,
+        page_size: 0,
         has_next_page: false,
         next_cursor: null,
       };
     }
 
-    const schoolRecords = edgesToSchoolRecords(store, conn.edges);
-    const schools: School[] = schoolRecords.map((rec) => {
-      const node = this._relaySchoolToNode(store, rec);
-      return this._parseSchoolNode(node);
-    });
-
-    const total = getSchoolSearchResultCount(conn);
-    const pageInfo = getSchoolSearchPageInfo(store, conn);
-    const hasNext = pageInfo ? Boolean(pageInfo.hasNextPage) : false;
-    const nextCursor = pageInfo
-      ? (pageInfo.endCursor as string) ?? null
-      : null;
+    const edges = (conn.edges ?? []) as Mapping[];
+    const pageInfo = (conn.pageInfo ?? {}) as Mapping;
+    const schools: School[] = [];
+    for (const edge of edges) {
+      const node =
+        typeof edge === "object" && edge !== null ? (edge.node as Mapping) : null;
+      if (!node) continue;
+      schools.push(this._parseSchoolNode(node));
+    }
 
     return {
       schools,
-      total,
-      page,
+      total: safeInt(conn.resultCount),
       page_size: schools.length,
-      has_next_page: hasNext,
-      next_cursor: nextCursor,
+      has_next_page: Boolean(pageInfo.hasNextPage),
+      next_cursor: pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
     };
   }
 
   // ---- Professor search / listing --------------------------------------------
 
-  /** Builds the professor search page URL with query in `q`. */
-  private _searchProfessorsPageUrl(query: string): string {
-    const base = this._config.search_professors_page_url.replace(/\/$/, "");
-    return `${base}?q=${encodeURIComponent(query)}`;
-  }
-
-  /** Fetches the professor search page HTML and extracts __RELAY_STORE__. */
-  private async _fetchRelayStoreForSearchProfessors(
-    query: string
-  ): Promise<Mapping> {
-    const url = this._searchProfessorsPageUrl(query);
-    const html = await this._getClient().getHtml(url);
-    try {
-      return extractRelayStore(html);
-    } catch (e) {
-      throw new ParsingError(
-        `Failed to extract __RELAY_STORE__ from search page: ${e}`
-      );
-    }
-  }
-
   /**
-   * Searches professors by name; optionally restricted to a school via school_id.
-   * Fetches the search page and parses the embedded store for the first page of results.
+   * Searches professors by name (TeacherSearchResultsPageQuery).
+   * Optionally restrict to a school via school_id.
    *
    * @param query - Search string (e.g. "Smith").
-   * @param options - Optional school_id, page, page_size.
-   * @returns Professors on the current page plus total/has_next_page/next_cursor when available.
+   * @param options - Optional school_id, page_size, cursor.
+   * @returns Professors for this page plus total/has_next_page/next_cursor.
    */
   async searchProfessors(
     query: string,
     options: {
       school_id?: string | null;
-      page?: number;
       page_size?: number;
+      cursor?: string | null;
     } = {}
   ): Promise<ProfessorSearchResult> {
-    const page = options.page ?? 1;
-    const pageSize = options.page_size ?? 20;
+    const count = options.page_size ?? 20;
+    const cursor = options.cursor ?? "";
+    const queryVar: Mapping = { text: query };
+    if (options.school_id != null) {
+      queryVar.schoolID = options.school_id;
+    }
 
-    const store = await this._fetchRelayStoreForSearchProfessors(query);
-    const conn = getTeacherSearchConnection(store);
+    const data = await this.rawQuery({
+      operationName: "TeacherSearchResultsPageQuery",
+      query: TEACHER_SEARCH_RESULTS_QUERY,
+      variables: { query: queryVar, count, cursor },
+    });
+
+    const search = ((data.data as Mapping) ?? {}).search as Mapping | undefined;
+    const conn = search?.teachers as Mapping | undefined;
     if (!conn) {
       return {
         professors: [],
         total: null,
-        page,
-        page_size: pageSize,
+        page_size: 0,
         has_next_page: false,
         next_cursor: null,
       };
     }
 
-    const teacherRecords = edgesToTeacherRecords(store, conn.edges);
-    const professors: Professor[] = teacherRecords.map((rec) => {
-      const node = this._relayProfessorToNode(store, rec);
-      return this._parseProfessorNode(node);
-    });
-
-    const total = getTeacherSearchResultCount(conn);
-    const pageInfo = getTeacherSearchPageInfo(store, conn);
-    const hasNext = pageInfo ? Boolean(pageInfo.hasNextPage) : false;
-    const nextCursor = pageInfo
-      ? (pageInfo.endCursor as string) ?? null
-      : null;
+    const edges = (conn.edges ?? []) as Mapping[];
+    const pageInfo = (conn.pageInfo ?? {}) as Mapping;
+    const professors: Professor[] = [];
+    for (const edge of edges) {
+      const node =
+        typeof edge === "object" && edge !== null ? (edge.node as Mapping) : null;
+      if (!node) continue;
+      professors.push(this._parseProfessorNode(node));
+    }
 
     return {
       professors,
-      total,
-      page,
+      total: safeInt(conn.resultCount),
       page_size: professors.length,
-      has_next_page: hasNext,
-      next_cursor: nextCursor,
+      has_next_page: Boolean(pageInfo.hasNextPage),
+      next_cursor: pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
     };
   }
 
   /**
-   * Lists professors for a given school (convenience around searchProfessors with school_id).
+   * Lists professors for a given school. Convenience wrapper around
+   * {@link searchProfessors} with school_id filtering.
    *
-   * @param school_id - Numeric school id.
-   * @param options - Optional query, page, page_size.
+   * @param school_id - Legacy numeric school id.
+   * @param options - Optional query text, page_size, cursor.
    */
   async listProfessorsForSchool(
     school_id: number,
     options: {
       query?: string | null;
-      page?: number;
       page_size?: number;
+      cursor?: string | null;
     } = {}
   ): Promise<ProfessorSearchResult> {
-    return this.searchProfessors(options.query ?? "*", {
+    return this.searchProfessors(options.query ?? "", {
       school_id: String(school_id),
-      page: options.page ?? 1,
       page_size: options.page_size ?? 20,
+      cursor: options.cursor,
     });
   }
 
   /**
    * Async generator that yields all professors for a school, page by page.
-   * Stops when a page returns no professors or has_next_page is false.
+   * Uses cursor-based pagination; stops when no more pages are available.
    */
   async *iterProfessorsForSchool(
     school_id: number,
     options: { query?: string | null; page_size?: number } = {}
   ): AsyncGenerator<Professor> {
-    const pageSize = options.page_size ?? 20;
-    let page = 1;
+    let cursor: string | null = null;
     while (true) {
       const result = await this.listProfessorsForSchool(school_id, {
         query: options.query,
-        page,
-        page_size: pageSize,
+        page_size: options.page_size ?? 20,
+        cursor,
       });
-      if (result.professors.length === 0) break;
       for (const prof of result.professors) {
         yield prof;
       }
-      if (!result.has_next_page) break;
-      page++;
+      if (!result.has_next_page || !result.next_cursor || result.professors.length === 0) break;
+      cursor = result.next_cursor;
     }
   }
 
   // ---- Professor details + ratings -------------------------------------------
 
-  /** Builds the professor profile page URL for a given id. */
-  private _professorPageUrl(professorId: string): string {
-    const base = this._config.professors_page_url.replace(/\/$/, "");
-    return `${base}/${professorId}`;
-  }
-
-  /** Fetches the professor profile page HTML and extracts __RELAY_STORE__. */
-  private async _fetchRelayStoreForProfessor(
-    professorId: string
-  ): Promise<Mapping> {
-    const url = this._professorPageUrl(professorId);
-    const html = await this._getClient().getHtml(url);
-    try {
-      return extractRelayStore(html);
-    } catch (e) {
-      throw new ParsingError(
-        `Failed to extract __RELAY_STORE__ from professor page: ${e}`
-      );
-    }
-  }
-
   /**
-   * Fetches a single professor by id. Loads the profile page and parses the store.
+   * Fetches a single professor by their legacy numeric id (GetTeacherQuery).
    *
-   * @param professorId - Legacy numeric id or string id from search/RMP URL.
-   * @returns The professor with school, tags, rating_distribution when present.
+   * @param professorId - Legacy numeric id from search results or RMP URL.
    */
   async getProfessor(professorId: string): Promise<Professor> {
-    const store = await this._fetchRelayStoreForProfessor(professorId);
-    const record = getProfessorNode(store, professorId);
-    if (!record) {
-      throw new ParsingError(
-        `Professor record not found in __RELAY_STORE__ for id=${professorId}`
-      );
-    }
-    const node = this._relayProfessorToNode(store, record);
-    return this._parseProfessorNode(node);
-  }
-
-  /** Fetches one page of professor ratings via the GraphQL API (cursor-based). */
-  private async _fetchProfessorRatingsViaGraphql(
-    professorId: string,
-    options: { after?: string | null; first?: number }
-  ): Promise<ProfessorRatingsPage> {
     const nodeId = teacherNodeId(professorId);
-    const variables: Mapping = {
-      id: nodeId,
-      first: options.first ?? 20,
-    };
-    if (options.after != null) variables.after = options.after;
-
     const data = await this.rawQuery({
-      query: TEACHER_RATINGS_QUERY,
-      variables,
+      operationName: "GetTeacherQuery",
+      query: GET_TEACHER_QUERY,
+      variables: { id: nodeId },
     });
 
     const node = ((data.data as Mapping) ?? {}).node as Mapping | undefined;
     if (!node) {
       throw new ParsingError(
-        "GraphQL response missing data.node (teacher not found or invalid id)"
+        `Teacher not found in GraphQL response for id=${professorId}`
       );
     }
-
-    const schoolObj = node.school;
-    let school: School | null = null;
-    if (typeof schoolObj === "object" && schoolObj !== null) {
-      const s = schoolObj as Mapping;
-      school = {
-        id: String(s.id ?? ""),
-        name: String(s.name ?? ""),
-        location: formatLocation(s),
-      };
-    }
-
-    const name = [node.firstName, node.lastName]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
-    const professor: Professor = {
-      id: String(node.legacyId ?? node.id ?? professorId),
-      name: name || "Unknown",
-      department: node.department != null ? String(node.department) : null,
-      school,
-      overall_rating: safeFloat(node.avgRating),
-      num_ratings: safeInt(node.numRatings),
-      percent_take_again: safeFloat(node.wouldTakeAgainPercent),
-      level_of_difficulty: safeFloat(node.avgDifficulty),
-      tags: [],
-    };
-
-    const ratingsConn = (node.ratings ?? {}) as Mapping;
-    const edges = (ratingsConn.edges ?? []) as Mapping[];
-    const pageInfo = (ratingsConn.pageInfo ?? {}) as Mapping;
-
-    const ratings: Rating[] = [];
-    for (const edge of edges) {
-      const r =
-        typeof edge === "object" && edge !== null
-          ? (edge.node as Mapping)
-          : null;
-      if (!r) continue;
-      const norm = this._relayRatingToNode(r);
-      ratings.push(this._parseRatingNode(norm));
-    }
-
-    return {
-      professor,
-      ratings,
-      has_next_page: Boolean(pageInfo.hasNextPage),
-      next_cursor: pageInfo.endCursor != null
-        ? String(pageInfo.endCursor)
-        : null,
-    };
+    return this._parseProfessorNode(node);
   }
 
   /**
-   * Fetches a single page of ratings for a professor. Default is 5 per page.
-   * On first call we load the profile page and, if there are more ratings, prefetch all
-   * via GraphQL and cache them; subsequent calls with the returned next_cursor are
-   * served from cache (no extra network request), matching the site’s "Load More" behavior.
+   * Fetches a single page of ratings for a professor. Default page size is 20.
    *
-   * @param professorId - Professor id from search or URL.
-   * @param options - cursor: use page.next_cursor for next page; page_size: default 5.
-   * @returns Professor plus ratings for this page and has_next_page/next_cursor.
+   * On the first call (no cursor) all ratings are pre-fetched via GraphQL and
+   * cached in memory, so subsequent "Load More" calls are served instantly with
+   * no additional network requests.
+   *
+   * @param professorId - Legacy numeric id.
+   * @param options - cursor: use page.next_cursor for the next page; page_size: default 20.
    */
   async getProfessorRatingsPage(
     professorId: string,
-    options: { cursor?: string | null; page_size?: number } = {}
+    options: {
+      cursor?: string | null;
+      page_size?: number;
+      course_filter?: string | null;
+    } = {}
   ): Promise<ProfessorRatingsPage> {
-    const pageSize = options.page_size ?? 5;
+    const pageSize = options.page_size ?? 20;
     const cursor = options.cursor ?? null;
 
-    // Numeric cursor: serve from cache (no network)
-    if (cursor !== null && /^\d+$/.test(cursor)) {
+    // Serve from cache when cursor is a numeric offset into the cached array.
+    if (cursor !== null) {
       const cached = this._professorRatingsCache.get(professorId);
       if (cached) {
         const start = Math.max(0, Number(cursor));
-        const pageSlice = cached.ratings.slice(start, start + pageSize);
+        const slice = cached.ratings.slice(start, start + pageSize);
         const hasNext = start + pageSize < cached.ratings.length;
         return {
           professor: cached.professor,
-          ratings: pageSlice,
+          ratings: slice,
           has_next_page: hasNext,
           next_cursor: hasNext ? String(start + pageSize) : null,
         };
       }
     }
 
-    // Non-numeric cursor (legacy GraphQL cursor): one GraphQL request
-    if (cursor !== null && !/^\d+$/.test(cursor)) {
-      return this._fetchProfessorRatingsViaGraphql(professorId, {
-        after: cursor,
-        first: pageSize,
-      });
-    }
-
-    // First page: check cache so repeated "first page" calls don't refetch
-    const cached = this._professorRatingsCache.get(professorId);
-    if (cached) {
-      const pageSlice = cached.ratings.slice(0, pageSize);
-      const hasNext = cached.ratings.length > pageSize;
+    // Repeated first-page call: hit cache.
+    const existing = this._professorRatingsCache.get(professorId);
+    if (existing && cursor === null) {
+      const slice = existing.ratings.slice(0, pageSize);
+      const hasNext = existing.ratings.length > pageSize;
       return {
-        professor: cached.professor,
-        ratings: pageSlice,
+        professor: existing.professor,
+        ratings: slice,
         has_next_page: hasNext,
         next_cursor: hasNext ? String(pageSize) : null,
       };
     }
 
-    // Fetch HTML and build initial list
-    const store = await this._fetchRelayStoreForProfessor(professorId);
-    const record = getProfessorNode(store, professorId);
-    if (!record) {
-      throw new ParsingError(
-        `Professor record not found in __RELAY_STORE__ for id=${professorId}`
-      );
+    // First load: fetch all ratings via GraphQL and cache.
+    const first = await this._fetchProfessorRatingsPage(professorId, {
+      first: 100,
+      courseFilter: options.course_filter,
+    });
+
+    let allRatings = [...first.ratings];
+    const professor = first.professor;
+    let after = first.has_next_page ? first.next_cursor : null;
+
+    while (after != null) {
+      const next = await this._fetchProfessorRatingsPage(professorId, {
+        after,
+        first: 100,
+        courseFilter: options.course_filter,
+      });
+      allRatings = allRatings.concat(next.ratings);
+      after = next.has_next_page ? next.next_cursor : null;
     }
 
-    const professor = this._parseProfessorNode(
-      this._relayProfessorToNode(store, record)
-    );
-    let ratingRecords = getRatingsFromStore(store, record);
-    if (ratingRecords.length === 0) {
-      ratingRecords = getAllRatingRecords(store);
-    }
+    this._professorRatingsCache.set(professorId, { professor, ratings: allRatings });
 
-    let ratingsModels: Rating[] = ratingRecords.map((r) =>
-      this._parseRatingNode(this._relayRatingToNode(r))
-    );
-
-    const relayPageInfo = getProfessorRatingsConnectionPageInfo(
-      store,
-      record
-    );
-
-    // If there are more pages, fetch all via GraphQL so "Load More" needs no further request
-    if (
-      relayPageInfo &&
-      relayPageInfo.hasNextPage &&
-      relayPageInfo.endCursor != null
-    ) {
-      let after: string | null = String(relayPageInfo.endCursor);
-      while (after != null) {
-        const page = await this._fetchProfessorRatingsViaGraphql(professorId, {
-          after,
-          first: 100,
-        });
-        ratingsModels = ratingsModels.concat(page.ratings);
-        after = page.has_next_page && page.next_cursor ? page.next_cursor : null;
-      }
-    }
-
-    this._professorRatingsCache.set(professorId, { professor, ratings: ratingsModels });
-
-    const pageSlice = ratingsModels.slice(0, pageSize);
-    const hasNext = ratingsModels.length > pageSize;
+    const slice = allRatings.slice(0, pageSize);
+    const hasNext = allRatings.length > pageSize;
     return {
       professor,
-      ratings: pageSlice,
+      ratings: slice,
       has_next_page: hasNext,
       next_cursor: hasNext ? String(pageSize) : null,
     };
   }
 
   /**
-   * Async generator that yields all ratings for a professor. Uses getProfessorRatingsPage
-   * under the hood (so first load may prefetch all and serve from cache). Optional
-   * `since` stops yielding when a rating’s date is before that date.
+   * Async generator that yields all ratings for a professor.
+   * Optional `since` stops yielding when a rating date is before that date.
    */
   async *iterProfessorRatings(
     professorId: string,
-    options: { page_size?: number; since?: Date | null } = {}
+    options: {
+      page_size?: number;
+      since?: Date | null;
+      course_filter?: string | null;
+    } = {}
   ): AsyncGenerator<Rating> {
     const pageSize = options.page_size ?? 20;
     const since = options.since ?? null;
@@ -756,6 +641,7 @@ export class RMPClient {
       const page = await this.getProfessorRatingsPage(professorId, {
         cursor,
         page_size: pageSize,
+        course_filter: options.course_filter,
       });
       for (const rating of page.ratings) {
         if (since && rating.date.getTime() <= since.getTime()) return;
@@ -766,280 +652,116 @@ export class RMPClient {
     }
   }
 
-  // ---- School details + ratings -----------------------------------------------
-
-  /** Builds the school profile page URL. */
-  private _schoolPageUrl(schoolId: string): string {
-    const base = this._config.schools_page_url.replace(/\/$/, "");
-    return `${base}/${schoolId}`;
-  }
-
-  /** Builds the single-school compare page URL. */
-  private _compareSchoolPageUrl(schoolId: string): string {
-    const base = this._config.compare_schools_page_url.replace(/\/$/, "");
-    return `${base}/${schoolId}`;
-  }
-
-  /** Builds the two-school compare page URL. */
-  private _compareSchoolsPageUrl(
-    schoolId1: string,
-    schoolId2: string
-  ): string {
-    const base = this._config.compare_schools_page_url.replace(/\/$/, "");
-    return `${base}/${schoolId1}/${schoolId2}`;
-  }
-
-  /** Fetches the school (or compare) page HTML and extracts __RELAY_STORE__. */
-  private async _fetchRelayStoreForSchool(
-    schoolId: string,
-    options: { useCompareUrl?: boolean } = {}
-  ): Promise<Mapping> {
-    const url = options.useCompareUrl
-      ? this._compareSchoolPageUrl(schoolId)
-      : this._schoolPageUrl(schoolId);
-    const html = await this._getClient().getHtml(url);
-    try {
-      return extractRelayStore(html);
-    } catch (e) {
-      throw new ParsingError(
-        `Failed to extract __RELAY_STORE__ from school page: ${e}`
-      );
-    }
-  }
-
-  /** Fetches the compare-two-schools page HTML and extracts __RELAY_STORE__. */
-  private async _fetchRelayStoreForCompareSchools(
-    schoolId1: string,
-    schoolId2: string
-  ): Promise<Mapping> {
-    const url = this._compareSchoolsPageUrl(schoolId1, schoolId2);
-    const html = await this._getClient().getHtml(url);
-    try {
-      return extractRelayStore(html);
-    } catch (e) {
-      throw new ParsingError(
-        `Failed to extract __RELAY_STORE__ from compare schools page: ${e}`
-      );
-    }
-  }
+  // ---- School details + ratings ----------------------------------------------
 
   /**
-   * Fetches a single school by id. Optionally uses the compare page URL for the store.
+   * Fetches a single school by its legacy numeric id (GetSchoolQuery).
+   * Includes category summary ratings (reputation, safety, etc.) when available.
    *
-   * @param schoolId - String id from search or RMP URL.
-   * @param options - use_compare_page: true to load from compare page.
+   * @param schoolId - Legacy numeric id from search results or RMP URL.
    */
-  async getSchool(
-    schoolId: string,
-    options: { use_compare_page?: boolean } = {}
-  ): Promise<School> {
-    const store = await this._fetchRelayStoreForSchool(schoolId, {
-      useCompareUrl: options.use_compare_page,
-    });
-    const record = getSchoolNode(store, schoolId);
-    if (!record) {
-      throw new ParsingError(
-        `School record not found in __RELAY_STORE__ for id=${schoolId}`
-      );
-    }
-    const node = this._relaySchoolToNode(store, record);
-    return this._parseSchoolNode(node);
-  }
-
-  /**
-   * Fetches two schools in one request using the compare page. Both schools
-   * are parsed from the same embedded store.
-   */
-  async getCompareSchools(
-    schoolId1: string,
-    schoolId2: string
-  ): Promise<CompareSchoolsResult> {
-    const store = await this._fetchRelayStoreForCompareSchools(
-      schoolId1,
-      schoolId2
-    );
-    const record1 = getSchoolNode(store, schoolId1);
-    const record2 = getSchoolNode(store, schoolId2);
-    if (!record1) {
-      throw new ParsingError(
-        `School record not found in __RELAY_STORE__ for id=${schoolId1}`
-      );
-    }
-    if (!record2) {
-      throw new ParsingError(
-        `School record not found in __RELAY_STORE__ for id=${schoolId2}`
-      );
-    }
-    return {
-      school_1: this._parseSchoolNode(this._relaySchoolToNode(store, record1)),
-      school_2: this._parseSchoolNode(this._relaySchoolToNode(store, record2)),
-    };
-  }
-
-  /** Fetches one page of school ratings via the GraphQL API (cursor-based). */
-  private async _fetchSchoolRatingsViaGraphql(
-    schoolId: string,
-    options: { after?: string | null; first?: number }
-  ): Promise<SchoolRatingsPage> {
+  async getSchool(schoolId: string): Promise<School> {
     const nodeId = schoolNodeId(schoolId);
-    const variables: Mapping = {
-      id: nodeId,
-      first: options.first ?? 20,
-    };
-    if (options.after != null) variables.after = options.after;
-
     const data = await this.rawQuery({
-      query: SCHOOL_RATINGS_QUERY,
-      variables,
+      operationName: "GetSchoolQuery",
+      query: GET_SCHOOL_QUERY,
+      variables: { id: nodeId },
     });
 
     const node = ((data.data as Mapping) ?? {}).node as Mapping | undefined;
     if (!node) {
       throw new ParsingError(
-        "GraphQL response missing data.node (school not found or invalid id)"
+        `School not found in GraphQL response for id=${schoolId}`
       );
     }
-
-    const school = this._parseSchoolNode({
-      id: node.legacyId ?? node.id,
-      name: node.name,
-      location: formatLocation(node),
-      overall_quality: node.avgRatingRounded,
-      num_ratings: node.numRatings,
-    });
-
-    const ratingsConn = (node.ratings ?? {}) as Mapping;
-    const edges = (ratingsConn.edges ?? []) as Mapping[];
-    const pageInfo = (ratingsConn.pageInfo ?? {}) as Mapping;
-
-    const ratings: SchoolRating[] = [];
-    for (const edge of edges) {
-      const r =
-        typeof edge === "object" && edge !== null
-          ? (edge.node as Mapping)
-          : null;
-      if (r) {
-        ratings.push(this._parseSchoolRatingNode(r));
-      }
-    }
-
-    return {
-      school,
-      ratings,
-      has_next_page: Boolean(pageInfo.hasNextPage),
-      next_cursor: pageInfo.endCursor != null
-        ? String(pageInfo.endCursor)
-        : null,
-    };
+    return this._parseSchoolNode(node);
   }
 
   /**
-   * Fetches a single page of ratings for a school. Same caching and 5-per-page default
-   * as professor ratings; "Show More" uses the returned next_cursor and is served from cache.
+   * Fetches two schools and returns them as a pair.
+   * Each school is fetched with a separate GraphQL request (run in parallel).
+   */
+  async getCompareSchools(
+    schoolId1: string,
+    schoolId2: string
+  ): Promise<CompareSchoolsResult> {
+    const [school_1, school_2] = await Promise.all([
+      this.getSchool(schoolId1),
+      this.getSchool(schoolId2),
+    ]);
+    return { school_1, school_2 };
+  }
+
+  /**
+   * Fetches a single page of ratings for a school. Default page size is 20.
    *
-   * @param schoolId - School id from search or URL.
-   * @param options - cursor: use page.next_cursor for next page; page_size: default 5.
-   * @returns School plus ratings for this page and has_next_page/next_cursor.
+   * On the first call (no cursor) all ratings are pre-fetched and cached so
+   * subsequent "Show More" calls are served from memory.
+   *
+   * @param schoolId - Legacy numeric id.
+   * @param options - cursor: use page.next_cursor; page_size: default 20.
    */
   async getSchoolRatingsPage(
     schoolId: string,
     options: { cursor?: string | null; page_size?: number } = {}
   ): Promise<SchoolRatingsPage> {
-    const pageSize = options.page_size ?? 5;
+    const pageSize = options.page_size ?? 20;
     const cursor = options.cursor ?? null;
 
-    // Numeric cursor: serve from cache (no network)
-    if (cursor !== null && /^\d+$/.test(cursor)) {
+    if (cursor !== null) {
       const cached = this._schoolRatingsCache.get(schoolId);
       if (cached) {
         const start = Math.max(0, Number(cursor));
-        const pageSlice = cached.ratings.slice(start, start + pageSize);
+        const slice = cached.ratings.slice(start, start + pageSize);
         const hasNext = start + pageSize < cached.ratings.length;
         return {
           school: cached.school,
-          ratings: pageSlice,
+          ratings: slice,
           has_next_page: hasNext,
           next_cursor: hasNext ? String(start + pageSize) : null,
         };
       }
     }
 
-    // Non-numeric cursor (legacy GraphQL cursor): one GraphQL request
-    if (cursor !== null && !/^\d+$/.test(cursor)) {
-      return this._fetchSchoolRatingsViaGraphql(schoolId, {
-        after: cursor,
-        first: pageSize,
-      });
-    }
-
-    // First page: check cache so repeated "first page" calls don't refetch
-    const cached = this._schoolRatingsCache.get(schoolId);
-    if (cached) {
-      const pageSlice = cached.ratings.slice(0, pageSize);
-      const hasNext = cached.ratings.length > pageSize;
+    const existing = this._schoolRatingsCache.get(schoolId);
+    if (existing && cursor === null) {
+      const slice = existing.ratings.slice(0, pageSize);
+      const hasNext = existing.ratings.length > pageSize;
       return {
-        school: cached.school,
-        ratings: pageSlice,
+        school: existing.school,
+        ratings: slice,
         has_next_page: hasNext,
         next_cursor: hasNext ? String(pageSize) : null,
       };
     }
 
-    // Fetch HTML and build initial list
-    const store = await this._fetchRelayStoreForSchool(schoolId);
-    const record = getSchoolNode(store, schoolId);
-    if (!record) {
-      throw new ParsingError(
-        `School record not found in __RELAY_STORE__ for id=${schoolId}`
-      );
+    const first = await this._fetchSchoolRatingsPage(schoolId, { first: 100 });
+
+    let allRatings = [...first.ratings];
+    const school = first.school;
+    let after = first.has_next_page ? first.next_cursor : null;
+
+    while (after != null) {
+      const next = await this._fetchSchoolRatingsPage(schoolId, { after, first: 100 });
+      allRatings = allRatings.concat(next.ratings);
+      after = next.has_next_page ? next.next_cursor : null;
     }
 
-    const school = this._parseSchoolNode(
-      this._relaySchoolToNode(store, record)
-    );
-    let ratingRecords = getSchoolRatingsFromStore(store, record);
-    if (ratingRecords.length === 0) {
-      ratingRecords = getAllSchoolRatingRecords(store);
-    }
+    this._schoolRatingsCache.set(schoolId, { school, ratings: allRatings });
 
-    let ratingsModels: SchoolRating[] = ratingRecords.map((r) =>
-      this._parseSchoolRatingNode(r)
-    );
-
-    const relayPageInfo = getSchoolRatingsConnectionPageInfo(store, record);
-
-    // If there are more pages, fetch all via GraphQL so "Show More" needs no further request
-    if (
-      relayPageInfo &&
-      relayPageInfo.hasNextPage &&
-      relayPageInfo.endCursor != null
-    ) {
-      let after: string | null = String(relayPageInfo.endCursor);
-      while (after != null) {
-        const page = await this._fetchSchoolRatingsViaGraphql(schoolId, {
-          after,
-          first: 100,
-        });
-        ratingsModels = ratingsModels.concat(page.ratings);
-        after = page.has_next_page && page.next_cursor ? page.next_cursor : null;
-      }
-    }
-
-    this._schoolRatingsCache.set(schoolId, { school, ratings: ratingsModels });
-
-    const pageSlice = ratingsModels.slice(0, pageSize);
-    const hasNext = ratingsModels.length > pageSize;
+    const slice = allRatings.slice(0, pageSize);
+    const hasNext = allRatings.length > pageSize;
     return {
       school,
-      ratings: pageSlice,
+      ratings: slice,
       has_next_page: hasNext,
       next_cursor: hasNext ? String(pageSize) : null,
     };
   }
 
   /**
-   * Async generator that yields all ratings for a school. Optional `since` stops
-   * when a rating’s date is before that date.
+   * Async generator that yields all ratings for a school.
+   * Optional `since` stops when a rating date is before that date.
    */
   async *iterSchoolRatings(
     schoolId: string,
@@ -1062,278 +784,207 @@ export class RMPClient {
     }
   }
 
-  // ---- Internal relay-to-node converters --------------------------------------
-  // These convert raw store/GraphQL records to a normalized node shape that the
-  // _parse* methods expect (snake_case, consistent field names).
+  // ---- Private GraphQL page fetchers -----------------------------------------
 
-  /** Converts a professor/teacher store record (and refs) to a flat node for parsing. */
-  private _relayProfessorToNode(
-    store: Mapping,
-    record: Mapping
-  ): Mapping {
-    const firstName = record.firstName as string | undefined;
-    const lastName = record.lastName as string | undefined;
-    const node: Mapping = {
-      id: record.id ?? record.__id ?? record.legacyId,
-      name:
-        (record.name as string) ||
-        [firstName, lastName].filter(Boolean).join(" "),
-      department: record.department,
-      url: record.url,
-      overallRating: record.avgRating ?? record.overallRating,
-      numRatings: record.numRatings,
-      percentTakeAgain:
-        record.wouldTakeAgainPercent ?? record.percentTakeAgain,
-      levelOfDifficulty:
-        record.avgDifficulty ?? record.levelOfDifficulty,
-      tags: (record.tags as string[]) ?? [],
+  private async _fetchProfessorRatingsPage(
+    professorId: string,
+    options: { after?: string | null; first?: number; courseFilter?: string | null }
+  ): Promise<ProfessorRatingsPage> {
+    const nodeId = teacherNodeId(professorId);
+    const variables: Mapping = {
+      count: options.first ?? 20,
+      id: nodeId,
+      courseFilter: options.courseFilter ?? null,
+    };
+    if (options.after != null) variables.cursor = options.after;
+
+    const data = await this.rawQuery({
+      operationName: "RatingsListQuery",
+      query: RATINGS_LIST_QUERY,
+      variables,
+    });
+
+    const node = ((data.data as Mapping) ?? {}).node as Mapping | undefined;
+    if (!node) {
+      throw new ParsingError(
+        "GraphQL response missing data.node (teacher not found or invalid id)"
+      );
+    }
+
+    const schoolObj = node.school;
+    const school: School | null =
+      typeof schoolObj === "object" && schoolObj !== null
+        ? this._parseSchoolNode(schoolObj as Mapping)
+        : null;
+
+    const name =
+      [node.firstName, node.lastName].filter(Boolean).join(" ").trim() ||
+      String(node.lastName ?? "Unknown");
+
+    const professor: Professor = {
+      id: String(node.legacyId ?? node.id ?? professorId),
+      name: name || "Unknown",
+      department: node.department != null ? String(node.department) : null,
+      school,
+      overall_rating: safeFloat(node.avgRating),
+      num_ratings: safeInt(node.numRatings),
+      percent_take_again: safeFloat(node.wouldTakeAgainPercent),
+      level_of_difficulty: safeFloat(node.avgDifficulty),
+      tags: [],
+      rating_distribution: null,
     };
 
-    const schoolVal = record.school;
-    if (isRecordRef(schoolVal)) {
-      const schoolRecord = resolveRef(store, schoolVal);
-      if (schoolRecord) {
-        node.school = schoolRecordToLocationDict(schoolRecord);
-      }
-    } else if (typeof schoolVal === "object" && schoolVal !== null) {
-      node.school = schoolRecordToLocationDict(schoolVal as Mapping);
+    const ratingsConn = (node.ratings ?? {}) as Mapping;
+    const edges = (ratingsConn.edges ?? []) as Mapping[];
+    const pageInfo = (ratingsConn.pageInfo ?? {}) as Mapping;
+    const ratings: Rating[] = [];
+    for (const edge of edges) {
+      const r =
+        typeof edge === "object" && edge !== null ? (edge.node as Mapping) : null;
+      if (r) ratings.push(this._parseRatingNode(r));
     }
 
-    const distRaw =
-      record.ratingsDistribution ?? record.ratingDistribution;
-    if (isRecordRef(distRaw)) {
-      const distRecord = resolveRef(store, distRaw);
-      node.rating_distribution =
-        distRecord && typeof distRecord === "object" ? distRecord : distRaw;
-    } else {
-      node.rating_distribution = distRaw;
-    }
-
-    const tagsRefs = record.teacherRatingTags;
-    if (
-      typeof tagsRefs === "object" &&
-      tagsRefs !== null &&
-      "__refs" in tagsRefs
-    ) {
-      const refIds =
-        ((tagsRefs as Mapping).__refs as string[]) ?? [];
-      const tagRecords = resolveRefs(store, refIds);
-      node.tags = tagRecords
-        .map((r) => String(r.tagName ?? ""))
-        .filter(Boolean);
-    } else if (!(node.tags as string[])?.length) {
-      node.tags = (record.tags as string[]) ?? [];
-    }
-
-    return node;
+    return {
+      professor,
+      ratings,
+      has_next_page: Boolean(pageInfo.hasNextPage),
+      next_cursor: pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
+    };
   }
 
-  /** Converts a single rating record (store or GraphQL edge.node) to a normalized node. */
-  private _relayRatingToNode(record: Mapping): Mapping {
-    const out: Mapping = {
-      date: record.date,
-      comment: (record.comment as string) ?? "",
-      quality: record.clarityRating ?? record.quality,
-      difficulty: record.difficultyRating ?? record.difficulty,
-      tags: (record.tags as string[]) ?? [],
-      course:
-        record.class ?? record.course ?? record.courseName,
+  private async _fetchSchoolRatingsPage(
+    schoolId: string,
+    options: { after?: string | null; first?: number }
+  ): Promise<SchoolRatingsPage> {
+    const nodeId = schoolNodeId(schoolId);
+    const variables: Mapping = {
+      count: options.first ?? 20,
+      id: nodeId,
     };
+    if (options.after != null) variables.cursor = options.after;
 
-    if (typeof record.ratingTags === "string") {
-      out.tags = (record.ratingTags as string)
-        .split("--")
-        .map((t: string) => t.trim())
-        .filter(Boolean);
+    const data = await this.rawQuery({
+      operationName: "SchoolRatingsListQuery",
+      query: SCHOOL_RATINGS_LIST_QUERY,
+      variables,
+    });
+
+    const node = ((data.data as Mapping) ?? {}).node as Mapping | undefined;
+    if (!node) {
+      throw new ParsingError(
+        "GraphQL response missing data.node (school not found or invalid id)"
+      );
     }
 
-    out.for_credit =
-      "isForCredit" in record
-        ? record.isForCredit
-        : record.for_credit ?? record.forCredit;
-    out.attendance =
-      record.attendanceMandatory ?? record.attendance;
-    out.grade = record.grade;
-    out.textbook =
-      "textbookUse" in record
-        ? record.textbookUse
-        : record.textbook;
-    out.thumbsUp = record.thumbsUpTotal ?? record.thumbsUp;
-    out.thumbsDown = record.thumbsDownTotal ?? record.thumbsDown;
+    const school = this._parseSchoolNode({
+      id: node.legacyId ?? node.id ?? schoolId,
+      name: node.name,
+      city: node.city,
+      state: node.state,
+      country: node.country,
+    });
 
-    return out;
-  }
-
-  /** Converts a school store record (and optional summary ref) to a flat node. */
-  private _relaySchoolToNode(store: Mapping, record: Mapping): Mapping {
-    const node: Mapping = {
-      id: record.id ?? record.__id ?? record.legacyId,
-      name: (record.name as string) ?? "",
-      location: formatLocation(record),
-      overall_quality:
-        record.avgRatingRounded ??
-        record.overallQuality ??
-        record.overall,
-      num_ratings: record.numRatings,
-      reputation: record.reputation,
-      safety: record.safety,
-      happiness: record.happiness,
-      facilities: record.facilities,
-      social: record.social,
-      location_rating: record.location,
-      clubs: record.clubs,
-      opportunities: record.opportunities,
-      internet: record.internet,
-      food: record.food,
-    };
-
-    const summaryRef = record.summary;
-    if (isRecordRef(summaryRef)) {
-      const summaryRecord = resolveRef(store, summaryRef);
-      if (summaryRecord) {
-        node.reputation =
-          node.reputation ?? safeFloat(summaryRecord.schoolReputation);
-        node.safety =
-          node.safety ?? safeFloat(summaryRecord.schoolSafety);
-        node.happiness =
-          node.happiness ?? safeFloat(summaryRecord.schoolSatisfaction);
-        node.facilities =
-          node.facilities ?? safeFloat(summaryRecord.campusCondition);
-        node.social =
-          node.social ?? safeFloat(summaryRecord.socialActivities);
-        node.location_rating =
-          node.location_rating ?? safeFloat(summaryRecord.campusLocation);
-        node.clubs =
-          node.clubs ??
-          safeFloat(summaryRecord.clubAndEventActivities);
-        node.opportunities =
-          node.opportunities ??
-          safeFloat(summaryRecord.careerOpportunities);
-        node.internet =
-          node.internet ?? safeFloat(summaryRecord.internetSpeed);
-        node.food =
-          node.food ?? safeFloat(summaryRecord.foodQuality);
-      }
+    const ratingsConn = (node.ratings ?? {}) as Mapping;
+    const edges = (ratingsConn.edges ?? []) as Mapping[];
+    const pageInfo = (ratingsConn.pageInfo ?? {}) as Mapping;
+    const ratings: SchoolRating[] = [];
+    for (const edge of edges) {
+      const r =
+        typeof edge === "object" && edge !== null ? (edge.node as Mapping) : null;
+      if (r) ratings.push(this._parseSchoolRatingNode(r));
     }
 
-    return node;
+    return {
+      school,
+      ratings,
+      has_next_page: Boolean(pageInfo.hasNextPage),
+      next_cursor: pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
+    };
   }
 
   // ---- Internal parsers -------------------------------------------------------
-  // Map normalized nodes to the public model types (Professor, Rating, School, SchoolRating).
 
-  /** Maps a normalized professor node to the public Professor type. */
   private _parseProfessorNode(node: Mapping): Professor {
-    const schoolInfo = node.school;
-    let school: School | null = null;
-    if (typeof schoolInfo === "object" && schoolInfo !== null) {
-      const s = schoolInfo as Mapping;
-      school = {
-        id: String(s.id ?? ""),
-        name: String(s.name ?? ""),
-        location:
-          typeof s.location === "string"
-            ? s.location
-            : formatLocation(s),
-      };
-    }
+    const firstName = node.firstName as string | undefined;
+    const lastName = node.lastName as string | undefined;
+    const name =
+      (node.name as string) ||
+      [firstName, lastName].filter(Boolean).join(" ").trim() ||
+      "Unknown";
 
-    const ratingDist = buildRatingDistribution(node.rating_distribution);
-
-    const tagsRaw = node.tags;
-    const tags = Array.isArray(tagsRaw)
-      ? tagsRaw.map((t) => String(t))
-      : [];
+    const schoolObj = node.school;
+    const school: School | null =
+      typeof schoolObj === "object" && schoolObj !== null
+        ? this._parseSchoolNode(schoolObj as Mapping)
+        : null;
 
     return {
-      id: String(node.id ?? ""),
-      name: String(node.name ?? ""),
+      id: String(node.legacyId ?? node.id ?? ""),
+      name,
       department: node.department != null ? String(node.department) : null,
       school,
       url: node.url != null ? String(node.url) : null,
-      overall_rating: safeFloat(node.overallRating),
+      overall_rating: safeFloat(node.avgRating ?? node.overallRating),
       num_ratings: safeInt(node.numRatings),
-      percent_take_again: safeFloat(node.percentTakeAgain),
-      level_of_difficulty: safeFloat(node.levelOfDifficulty),
-      tags,
-      rating_distribution: ratingDist,
+      percent_take_again: safeFloat(node.wouldTakeAgainPercent ?? node.percentTakeAgain),
+      level_of_difficulty: safeFloat(node.avgDifficulty ?? node.levelOfDifficulty),
+      tags: [],
+      rating_distribution: null,
     };
   }
 
-  /** Maps a normalized rating node to the public Rating type. */
-  private _parseRatingNode(node: Mapping): Rating {
-    const ratingDate = parseDate(node.date);
-
-    const tagsRaw = node.tags;
-    const tags = Array.isArray(tagsRaw)
-      ? tagsRaw.map((t) => String(t))
-      : [];
-
-    let details: Record<string, unknown> | null = null;
-    const keyToSnake: Record<string, string> = { forCredit: "for_credit" };
-    for (const key of [
-      "for_credit",
-      "forCredit",
-      "attendance",
-      "grade",
-      "textbook",
-    ]) {
-      const val = node[key];
-      if (val != null) {
-        if (!details) details = {};
-        details[keyToSnake[key] ?? key] = val;
-      }
+  private _parseRatingNode(record: Mapping): Rating {
+    const tags: string[] = [];
+    if (typeof record.ratingTags === "string") {
+      tags.push(
+        ...record.ratingTags
+          .split("--")
+          .map((t: string) => t.trim())
+          .filter(Boolean)
+      );
     }
 
+    const details: Record<string, unknown> = {};
+    if (record.isForCredit != null) details.for_credit = record.isForCredit;
+    if (record.attendanceMandatory != null) details.attendance = record.attendanceMandatory;
+    if (record.grade != null) details.grade = record.grade;
+    if (record.textbookUse != null) details.textbook = record.textbookUse;
+
     return {
-      date: ratingDate,
-      comment: String(node.comment ?? ""),
-      quality: safeFloat(node.quality),
-      difficulty: safeFloat(node.difficulty),
+      date: parseDate(record.date),
+      comment: String(record.comment ?? ""),
+      quality: safeFloat(record.clarityRating ?? record.helpfulRating),
+      difficulty: safeFloat(record.difficultyRating),
       tags,
-      course_raw: (node.course as string) ?? null,
-      details,
-      thumbs_up: safeInt(node.thumbsUp ?? node.thumbs_up),
-      thumbs_down: safeInt(node.thumbsDown ?? node.thumbs_down),
+      course_raw: (record.class as string) ?? null,
+      details: Object.keys(details).length > 0 ? details : null,
+      thumbs_up: safeInt(record.thumbsUpTotal),
+      thumbs_down: safeInt(record.thumbsDownTotal),
     };
   }
 
-  /** Maps a normalized school node to the public School type. */
   private _parseSchoolNode(node: Mapping): School {
-    const locationRating =
-      safeFloat(node.location_rating) ??
-      (typeof node.location === "number"
-        ? safeFloat(node.location)
-        : null);
-
+    const summary = node.summary as Mapping | undefined;
     return {
-      id: String(node.id ?? ""),
+      id: String(node.legacyId ?? node.id ?? ""),
       name: String(node.name ?? ""),
-      location:
-        typeof node.location === "string"
-          ? node.location
-          : formatLocation(node),
-      overall_quality: safeFloat(
-        node.overall_quality ?? node.overallQuality ?? node.overall
-      ),
-      num_ratings: safeInt(node.num_ratings ?? node.numRatings),
-      reputation: safeFloat(node.reputation),
-      safety: safeFloat(node.safety),
-      happiness: safeFloat(node.happiness),
-      facilities: safeFloat(node.facilities),
-      social: safeFloat(node.social),
-      location_rating: locationRating,
-      clubs: safeFloat(node.clubs),
-      opportunities: safeFloat(node.opportunities),
-      internet: safeFloat(node.internet),
-      food: safeFloat(node.food),
+      location: formatLocation(node),
+      overall_quality: safeFloat(node.avgRatingRounded ?? node.avgRating),
+      num_ratings: safeInt(node.numRatings),
+      reputation: safeFloat(summary?.schoolReputation ?? node.reputation),
+      safety: safeFloat(summary?.schoolSafety ?? node.safety),
+      happiness: safeFloat(summary?.schoolSatisfaction ?? node.happiness),
+      facilities: safeFloat(summary?.campusCondition ?? node.facilities),
+      social: safeFloat(summary?.socialActivities ?? node.social),
+      location_rating: safeFloat(summary?.campusLocation ?? node.location_rating),
+      clubs: safeFloat(summary?.clubAndEventActivities ?? node.clubs),
+      opportunities: safeFloat(summary?.careerOpportunities ?? node.opportunities),
+      internet: safeFloat(summary?.internetSpeed ?? node.internet),
+      food: safeFloat(summary?.foodQuality ?? node.food),
     };
   }
 
-  /** Maps a raw school rating record (store or GraphQL) to the public SchoolRating type. */
   private _parseSchoolRatingNode(record: Mapping): SchoolRating {
-    const ratingDate = parseDate(record.date);
-
     const rmpToCategory: [string, string][] = [
       ["reputationRating", "reputation"],
       ["locationRating", "location"],
@@ -1349,60 +1000,26 @@ export class RMPClient {
 
     let categoryRatings: Record<string, number> | null = null;
     for (const [rmpKey, catKey] of rmpToCategory) {
-      const val = record[rmpKey];
-      if (val != null) {
-        const f = safeFloat(val);
-        if (f != null) {
-          if (!categoryRatings) categoryRatings = {};
-          categoryRatings[catKey] = f;
-        }
+      const f = safeFloat(record[rmpKey]);
+      if (f != null) {
+        if (!categoryRatings) categoryRatings = {};
+        categoryRatings[catKey] = f;
       }
     }
 
-    if (!categoryRatings) {
-      const catKeys = [
-        "reputation",
-        "location",
-        "opportunities",
-        "facilities",
-        "internet",
-        "food",
-        "clubs",
-        "social",
-        "happiness",
-        "safety",
-      ];
-      for (const key of catKeys) {
-        const val = record[key] ?? record[key.replace(/_/g, "")];
-        if (val != null) {
-          const f = safeFloat(val);
-          if (f != null) {
-            if (!categoryRatings) categoryRatings = {};
-            categoryRatings[key] = f;
-          }
-        }
-      }
-    }
-
-    let overall = safeFloat(
-      record.overall ?? record.overallQuality ?? record.quality
-    );
-    if (overall == null && categoryRatings) {
+    let overall: number | null = null;
+    if (categoryRatings) {
       const vals = Object.values(categoryRatings);
       overall = vals.reduce((a, b) => a + b, 0) / vals.length;
     }
 
     return {
-      date: ratingDate,
+      date: parseDate(record.date),
       comment: String(record.comment ?? ""),
       overall,
       category_ratings: categoryRatings,
-      thumbs_up: safeInt(
-        record.thumbsUpTotal ?? record.thumbsUp ?? record.thumbs_up
-      ),
-      thumbs_down: safeInt(
-        record.thumbsDownTotal ?? record.thumbsDown ?? record.thumbs_down
-      ),
+      thumbs_up: safeInt(record.thumbsUpTotal),
+      thumbs_down: safeInt(record.thumbsDownTotal),
     };
   }
 }

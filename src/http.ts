@@ -1,5 +1,5 @@
 /**
- * HTTP client used by the RMP client: retries, rate limiting, and error mapping.
+ * HTTP client used by the RMP client: rate limiting, retries, and error mapping.
  *
  * - All requests go through a token-bucket rate limiter (see {@link TokenBucket}).
  * - Failed requests (5xx or network errors) are retried up to config.max_retries.
@@ -113,63 +113,6 @@ export class HttpClient {
         clearTimeout(timeoutId);
         this._abortController = null;
         if (e instanceof HttpError || e instanceof RMPAPIError) throw e;
-        lastError = e instanceof Error ? e : new Error(String(e));
-        if (attempt >= this._config.max_retries) {
-          throw new RetryError(lastError);
-        }
-      }
-    }
-
-    throw new RetryError(lastError ?? new Error("Unknown error"));
-  }
-
-  /**
-   * Sends a GET request for HTML or text. Same rate limit, timeout, and retry
-   * behavior as {@link postJson}. Use for professor/school/search pages where
-   * we extract __RELAY_STORE__ from the response.
-   *
-   * @param url - Full URL (not resolved against base_url).
-   * @param headers - Optional extra headers.
-   * @returns Response body as string.
-   */
-  async getHtml(
-    url: string,
-    headers?: Record<string, string>
-  ): Promise<string> {
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt <= this._config.max_retries; attempt++) {
-      await this._bucket.consume();
-      this._abortController = new AbortController();
-      const timeoutId = setTimeout(
-        () => this._abortController?.abort(),
-        this._config.timeout_seconds * 1000
-      );
-
-      try {
-        const response = await fetch(url, {
-          method: "GET",
-          headers: this._headers(headers),
-          signal: this._abortController.signal,
-        });
-        clearTimeout(timeoutId);
-        this._abortController = null;
-
-        if (response.ok) {
-          return await response.text();
-        }
-
-        const body = await response.text();
-        const err = new HttpError(response.status, url, body);
-        lastError = err;
-        if (response.status >= 500 && response.status < 600 && attempt < this._config.max_retries) {
-          continue;
-        }
-        throw err;
-      } catch (e) {
-        clearTimeout(timeoutId);
-        this._abortController = null;
-        if (e instanceof HttpError) throw e;
         lastError = e instanceof Error ? e : new Error(String(e));
         if (attempt >= this._config.max_retries) {
           throw new RetryError(lastError);
