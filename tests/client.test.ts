@@ -128,6 +128,54 @@ describe("RMPClient.searchSchools", () => {
       await client.close();
     }
   });
+
+  it("paginates across multiple pages using cursor", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            schools: {
+              edges: [
+                { cursor: "c0", node: { legacyId: 1, name: "School A", city: "A", state: "AA", numRatings: 10, avgRatingRounded: 3.5 } },
+              ],
+              pageInfo: { hasNextPage: true, endCursor: "c0" },
+              resultCount: 2,
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            schools: {
+              edges: [
+                { cursor: "c1", node: { legacyId: 2, name: "School B", city: "B", state: "BB", numRatings: 20, avgRatingRounded: 4.0 } },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: "c1" },
+              resultCount: 2,
+            },
+          },
+        })
+      );
+    const client = new RMPClient(config());
+    try {
+      const page1 = await client.searchSchools("test", { page_size: 1 });
+      expect(page1.schools).toHaveLength(1);
+      expect(page1.schools[0].name).toBe("School A");
+      expect(page1.has_next_page).toBe(true);
+
+      const page2 = await client.searchSchools("test", { page_size: 1, cursor: page1.next_cursor });
+      expect(page2.schools).toHaveLength(1);
+      expect(page2.schools[0].name).toBe("School B");
+      expect(page2.has_next_page).toBe(false);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const body2 = JSON.parse(fetchMock.mock.calls[1][1].body);
+      expect(body2.variables.cursor).toBe("c0");
+    } finally {
+      await client.close();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -235,6 +283,68 @@ describe("RMPClient.searchProfessors", () => {
       const result = await client.searchProfessors("zzzzz");
       expect(result.professors).toHaveLength(0);
       expect(result.has_next_page).toBe(false);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("paginates across multiple pages using cursor", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            teachers: {
+              edges: [
+                { cursor: "c0", node: { legacyId: 100, firstName: "Alice", lastName: "A", avgRating: 4.0, numRatings: 10, department: "CS", school: { legacyId: 1, name: "Uni", city: "C", state: "S" } } },
+              ],
+              pageInfo: { hasNextPage: true, endCursor: "c0" },
+              resultCount: 3,
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            teachers: {
+              edges: [
+                { cursor: "c1", node: { legacyId: 200, firstName: "Bob", lastName: "B", avgRating: 3.5, numRatings: 5, department: "Math", school: { legacyId: 1, name: "Uni", city: "C", state: "S" } } },
+              ],
+              pageInfo: { hasNextPage: true, endCursor: "c1" },
+              resultCount: 3,
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            teachers: {
+              edges: [
+                { cursor: "c2", node: { legacyId: 300, firstName: "Carol", lastName: "C", avgRating: 4.8, numRatings: 50, department: "Physics", school: { legacyId: 1, name: "Uni", city: "C", state: "S" } } },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: "c2" },
+              resultCount: 3,
+            },
+          },
+        })
+      );
+    const client = new RMPClient(config());
+    try {
+      const page1 = await client.searchProfessors("test", { page_size: 1 });
+      expect(page1.professors).toHaveLength(1);
+      expect(page1.professors[0].name).toBe("Alice A");
+      expect(page1.has_next_page).toBe(true);
+
+      const page2 = await client.searchProfessors("test", { page_size: 1, cursor: page1.next_cursor });
+      expect(page2.professors[0].name).toBe("Bob B");
+      expect(page2.has_next_page).toBe(true);
+
+      const page3 = await client.searchProfessors("test", { page_size: 1, cursor: page2.next_cursor });
+      expect(page3.professors[0].name).toBe("Carol C");
+      expect(page3.has_next_page).toBe(false);
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     } finally {
       await client.close();
     }
@@ -754,6 +864,86 @@ describe("RMPClient.iterProfessorRatings", () => {
       await client.close();
     }
   });
+
+  it("iterates all ratings with small page_size across cache pages", async () => {
+    fetchMock.mockResolvedValueOnce(
+      gqlResponse({
+        node: {
+          legacyId: 1,
+          lastName: "X",
+          numRatings: 5,
+          ratings: {
+            edges: [
+              { cursor: "c0", node: { comment: "R1", date: "2025-05-01", clarityRating: 5, difficultyRating: 2, class: "CS" } },
+              { cursor: "c1", node: { comment: "R2", date: "2025-04-01", clarityRating: 4, difficultyRating: 3, class: "CS" } },
+              { cursor: "c2", node: { comment: "R3", date: "2025-03-01", clarityRating: 3, difficultyRating: 4, class: "CS" } },
+              { cursor: "c3", node: { comment: "R4", date: "2025-02-01", clarityRating: 2, difficultyRating: 5, class: "CS" } },
+              { cursor: "c4", node: { comment: "R5", date: "2025-01-01", clarityRating: 1, difficultyRating: 1, class: "CS" } },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      })
+    );
+    const client = new RMPClient(config());
+    try {
+      const comments: string[] = [];
+      for await (const r of client.iterProfessorRatings("1", { page_size: 2 })) {
+        comments.push(r.comment);
+      }
+      expect(comments).toEqual(["R1", "R2", "R3", "R4", "R5"]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("iterates ratings pre-fetched across multiple GraphQL pages", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        gqlResponse({
+          node: {
+            legacyId: 1,
+            lastName: "X",
+            numRatings: 4,
+            ratings: {
+              edges: [
+                { cursor: "c0", node: { comment: "GQL-P1A", date: "2025-04-01", clarityRating: 5, difficultyRating: 2, class: "CS" } },
+                { cursor: "c1", node: { comment: "GQL-P1B", date: "2025-03-01", clarityRating: 4, difficultyRating: 3, class: "CS" } },
+              ],
+              pageInfo: { hasNextPage: true, endCursor: "c1" },
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        gqlResponse({
+          node: {
+            legacyId: 1,
+            lastName: "X",
+            numRatings: 4,
+            ratings: {
+              edges: [
+                { cursor: "c2", node: { comment: "GQL-P2A", date: "2025-02-01", clarityRating: 3, difficultyRating: 4, class: "CS" } },
+                { cursor: "c3", node: { comment: "GQL-P2B", date: "2025-01-01", clarityRating: 2, difficultyRating: 5, class: "CS" } },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        })
+      );
+    const client = new RMPClient(config());
+    try {
+      const comments: string[] = [];
+      for await (const r of client.iterProfessorRatings("1", { page_size: 2 })) {
+        comments.push(r.comment);
+      }
+      expect(comments).toEqual(["GQL-P1A", "GQL-P1B", "GQL-P2A", "GQL-P2B"]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      await client.close();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -789,6 +979,36 @@ describe("RMPClient.iterSchoolRatings", () => {
       await client.close();
     }
   });
+
+  it("stops at 'since' date", async () => {
+    fetchMock.mockResolvedValueOnce(
+      gqlResponse({
+        node: {
+          name: "Uni",
+          city: "C",
+          state: "S",
+          ratings: {
+            edges: [
+              { cursor: "c0", node: { comment: "Recent", date: "2025-06-01", reputationRating: 5, thumbsUpTotal: 0, thumbsDownTotal: 0 } },
+              { cursor: "c1", node: { comment: "Old", date: "2024-01-01", reputationRating: 3, thumbsUpTotal: 0, thumbsDownTotal: 0 } },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      })
+    );
+    const client = new RMPClient(config());
+    try {
+      const comments: string[] = [];
+      const since = new Date("2025-01-01T00:00:00Z");
+      for await (const r of client.iterSchoolRatings("1466", { since })) {
+        comments.push(r.comment);
+      }
+      expect(comments).toEqual(["Recent"]);
+    } finally {
+      await client.close();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -804,6 +1024,168 @@ describe("RMPClient.listProfessorsForSchool", () => {
       const body = JSON.parse(fetchMock.mock.calls[0][1].body);
       expect(body.variables.query.schoolID).toBe("1530");
       expect(body.variables.query.text).toBe("");
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("returns professors for a school", async () => {
+    fetchMock.mockResolvedValueOnce(
+      gqlResponse({
+        search: {
+          teachers: {
+            edges: [
+              { cursor: "c0", node: { legacyId: 10, firstName: "John", lastName: "Doe", avgRating: 4.2, numRatings: 30, department: "CS", school: { legacyId: 1530, name: "UW", city: "Seattle", state: "WA" } } },
+              { cursor: "c1", node: { legacyId: 20, firstName: "Jane", lastName: "Smith", avgRating: 3.8, numRatings: 15, department: "Math", school: { legacyId: 1530, name: "UW", city: "Seattle", state: "WA" } } },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: "c1" },
+            resultCount: 2,
+          },
+        },
+      })
+    );
+    const client = new RMPClient(config());
+    try {
+      const result = await client.listProfessorsForSchool(1530, { page_size: 10 });
+      expect(result.professors).toHaveLength(2);
+      expect(result.professors[0].name).toBe("John Doe");
+      expect(result.professors[1].name).toBe("Jane Smith");
+      expect(result.has_next_page).toBe(false);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("paginates with cursor", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            teachers: {
+              edges: [
+                { cursor: "c0", node: { legacyId: 10, firstName: "A", lastName: "Prof", avgRating: 4.0, numRatings: 5, department: "CS", school: { legacyId: 1530, name: "UW", city: "Seattle", state: "WA" } } },
+              ],
+              pageInfo: { hasNextPage: true, endCursor: "c0" },
+              resultCount: 2,
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            teachers: {
+              edges: [
+                { cursor: "c1", node: { legacyId: 20, firstName: "B", lastName: "Prof", avgRating: 3.5, numRatings: 3, department: "Math", school: { legacyId: 1530, name: "UW", city: "Seattle", state: "WA" } } },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: "c1" },
+              resultCount: 2,
+            },
+          },
+        })
+      );
+    const client = new RMPClient(config());
+    try {
+      const p1 = await client.listProfessorsForSchool(1530, { page_size: 1 });
+      expect(p1.professors[0].name).toBe("A Prof");
+      expect(p1.has_next_page).toBe(true);
+
+      const p2 = await client.listProfessorsForSchool(1530, { page_size: 1, cursor: p1.next_cursor });
+      expect(p2.professors[0].name).toBe("B Prof");
+      expect(p2.has_next_page).toBe(false);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      await client.close();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// iterProfessorsForSchool
+// ---------------------------------------------------------------------------
+
+describe("RMPClient.iterProfessorsForSchool", () => {
+  it("yields all professors from a single page", async () => {
+    fetchMock.mockResolvedValueOnce(
+      gqlResponse({
+        search: {
+          teachers: {
+            edges: [
+              { cursor: "c0", node: { legacyId: 1, firstName: "A", lastName: "One", avgRating: 4.0, numRatings: 10, department: "CS", school: { legacyId: 99, name: "U", city: "C", state: "S" } } },
+              { cursor: "c1", node: { legacyId: 2, firstName: "B", lastName: "Two", avgRating: 3.5, numRatings: 5, department: "Math", school: { legacyId: 99, name: "U", city: "C", state: "S" } } },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: "c1" },
+            resultCount: 2,
+          },
+        },
+      })
+    );
+    const client = new RMPClient(config());
+    try {
+      const names: string[] = [];
+      for await (const prof of client.iterProfessorsForSchool(99)) {
+        names.push(prof.name);
+      }
+      expect(names).toEqual(["A One", "B Two"]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("yields professors across multiple pages", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            teachers: {
+              edges: [
+                { cursor: "c0", node: { legacyId: 1, firstName: "Page1", lastName: "Prof", avgRating: 4.0, numRatings: 10, department: "CS", school: { legacyId: 99, name: "U", city: "C", state: "S" } } },
+              ],
+              pageInfo: { hasNextPage: true, endCursor: "c0" },
+              resultCount: 3,
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        gqlResponse({
+          search: {
+            teachers: {
+              edges: [
+                { cursor: "c1", node: { legacyId: 2, firstName: "Page2A", lastName: "Prof", avgRating: 3.5, numRatings: 5, department: "Math", school: { legacyId: 99, name: "U", city: "C", state: "S" } } },
+                { cursor: "c2", node: { legacyId: 3, firstName: "Page2B", lastName: "Prof", avgRating: 4.5, numRatings: 20, department: "Bio", school: { legacyId: 99, name: "U", city: "C", state: "S" } } },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: "c2" },
+              resultCount: 3,
+            },
+          },
+        })
+      );
+    const client = new RMPClient(config());
+    try {
+      const names: string[] = [];
+      for await (const prof of client.iterProfessorsForSchool(99, { page_size: 1 })) {
+        names.push(prof.name);
+      }
+      expect(names).toEqual(["Page1 Prof", "Page2A Prof", "Page2B Prof"]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("handles empty results", async () => {
+    fetchMock.mockResolvedValueOnce(emptyResponse());
+    const client = new RMPClient(config());
+    try {
+      const names: string[] = [];
+      for await (const prof of client.iterProfessorsForSchool(99)) {
+        names.push(prof.name);
+      }
+      expect(names).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       await client.close();
     }

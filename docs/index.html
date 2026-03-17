@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RateMyProfessors API Client</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>RMP Client</h2>
+    <nav>
+      <ul>
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="functions.html">Functions</a></li>
+        <li><a href="types.html">Types</a></li>
+        <li><a href="errors.html">Errors</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a href="extras.html">Extras</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <h1>RateMyProfessors API Client</h1>
+    <p>
+      A typed, retrying, rate-limited <strong>unofficial</strong> TypeScript client for
+      <a href="https://www.ratemyprofessors.com">RateMyProfessors</a>.
+      Search schools and professors, fetch ratings, and build scripts or tools on top of RMP
+      with a simple API and full TypeScript types.
+    </p>
+
+    <div class="callout">
+      <strong>Disclaimer:</strong> This library is unofficial and may break if RMP changes their
+      internal API. Use responsibly and respect rate limits.
+    </div>
+
+    <h2>Requirements</h2>
+    <ul>
+      <li><strong>Node.js 18</strong> or later</li>
+      <li>Works in both TypeScript and JavaScript projects &mdash; types are included.</li>
+    </ul>
+
+    <h2>Installation</h2>
+    <pre><code>npm install ratemyprofessors-client</code></pre>
+
+    <h2>Quick Start</h2>
+    <p>Create a client and start querying:</p>
+    <pre><code>import { RMPClient } from "ratemyprofessors-client";
+
+const client = new RMPClient();
+
+try {
+  // Search for schools
+  const schools = await client.searchSchools("Queen's University");
+  console.log(schools.schools[0]?.name);
+
+  // Get a professor by ID
+  const prof = await client.getProfessor("2823076");
+  console.log(prof.name, prof.overall_rating);
+
+  // Iterate all ratings for a professor
+  for await (const rating of client.iterProfessorRatings(prof.id)) {
+    console.log(rating.date, rating.quality, rating.comment);
+  }
+} finally {
+  await client.close();
+}</code></pre>
+
+    <h2>Available Functions</h2>
+    <p>All methods are <code>async</code>. See the <a href="functions.html">full reference</a> for parameters, return types, and examples.</p>
+
+    <h3>Schools</h3>
+    <ul>
+      <li><code>searchSchools(query)</code> &mdash; Search schools by name. Returns paginated results.</li>
+      <li><code>getSchool(schoolId)</code> &mdash; Get a single school by its numeric ID.</li>
+      <li><code>getCompareSchools(id1, id2)</code> &mdash; Fetch two schools side by side.</li>
+      <li><code>getSchoolRatingsPage(schoolId)</code> &mdash; One page of school ratings (cached after first fetch).</li>
+      <li><code>iterSchoolRatings(schoolId)</code> &mdash; Async iterator over all school ratings.</li>
+    </ul>
+
+    <h3>Professors</h3>
+    <ul>
+      <li><code>searchProfessors(query)</code> &mdash; Search professors by name. Returns paginated results.</li>
+      <li><code>listProfessorsForSchool(schoolId)</code> &mdash; List professors at a given school.</li>
+      <li><code>iterProfessorsForSchool(schoolId)</code> &mdash; Async iterator over all professors at a school.</li>
+      <li><code>getProfessor(professorId)</code> &mdash; Get a single professor by their numeric ID.</li>
+      <li><code>getProfessorRatingsPage(professorId)</code> &mdash; One page of professor ratings (cached after first fetch).</li>
+      <li><code>iterProfessorRatings(professorId)</code> &mdash; Async iterator over all professor ratings.</li>
+    </ul>
+
+    <h3>Low-level</h3>
+    <ul>
+      <li><code>rawQuery(payload)</code> &mdash; Send a raw GraphQL payload to the RMP endpoint.</li>
+      <li><code>close()</code> &mdash; Close the client, abort in-flight requests, and clear caches.</li>
+    </ul>
+
+    <h2>Errors</h2>
+    <p>All errors extend <code>RMPError</code>. Catch and narrow with <code>instanceof</code>. See <a href="errors.html">the full error reference</a>.</p>
+    <ul>
+      <li><code>HttpError</code> &mdash; Non-2xx HTTP status (e.g. 404, 500).</li>
+      <li><code>ParsingError</code> &mdash; Response couldn't be parsed or entity not found.</li>
+      <li><code>RateLimitError</code> &mdash; Local rate limiter blocked the request.</li>
+      <li><code>RetryError</code> &mdash; Failed after all retry attempts.</li>
+      <li><code>RMPAPIError</code> &mdash; GraphQL API returned errors.</li>
+      <li><code>ConfigurationError</code> &mdash; Invalid client configuration.</li>
+    </ul>
+
+    <h2>Types</h2>
+    <p>All methods return typed data. See <a href="types.html">the full type reference</a>.</p>
+    <pre><code>import type {
+  School,
+  Professor,
+  Rating,
+  SchoolRating,
+  ProfessorSearchResult,
+  SchoolSearchResult,
+  ProfessorRatingsPage,
+  SchoolRatingsPage,
+  CompareSchoolsResult,
+} from "ratemyprofessors-client";</code></pre>
+
+    <h2>Extras</h2>
+    <p>Optional helpers for data pipelines. See <a href="extras.html">the extras reference</a>.</p>
+    <pre><code>import {
+  normalizeComment,
+  isValidComment,
+  cleanCourseLabel,
+  buildCourseMapping,
+  analyzeSentiment,
+} from "ratemyprofessors-client/extras";</code></pre>
+  </main>
+</body>
+</html>
