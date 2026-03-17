@@ -1,11 +1,20 @@
 /**
- * HTTP client with retries, rate limiting, and error mapping.
+ * HTTP client used by the RMP client: rate limiting, retries, and error mapping.
+ *
+ * - All requests go through a token-bucket rate limiter (see {@link TokenBucket}).
+ * - Failed requests (5xx or network errors) are retried up to config.max_retries.
+ * - Non-2xx responses become {@link HttpError}; GraphQL `errors` in the body become {@link RMPAPIError}.
+ * - Timeouts use AbortController; call {@link close} to cancel in-flight requests.
  */
 
 import type { RMPClientConfig } from "./config.js";
 import { HttpError, RetryError, RMPAPIError } from "./errors.js";
 import { TokenBucket } from "./rateLimit.js";
 
+/**
+ * Low-level HTTP client with retries, rate limiting, and typed errors.
+ * Typically you use {@link RMPClient}, which uses this internally.
+ */
 export class HttpClient {
   private _config: RMPClientConfig;
   private _bucket: TokenBucket;
@@ -24,9 +33,7 @@ export class HttpClient {
       ...this._config.default_headers,
       "User-Agent": this._config.user_agent,
     };
-    if (extra) {
-      Object.assign(headers, extra);
-    }
+    if (extra) Object.assign(headers, extra);
     return headers;
   }
 
@@ -37,6 +44,16 @@ export class HttpClient {
     return `${base}/${p}`;
   }
 
+  /**
+   * Sends a POST request with a JSON body. Respects rate limit, timeout, and
+   * retries. Throws {@link RMPAPIError} if the response contains a GraphQL
+   * `errors` key. Throws {@link HttpError} on non-2xx status. Throws
+   * {@link RetryError} after exhausting all retries.
+   *
+   * @param path - Path appended to base_url, or "" to POST directly to base_url.
+   * @param payload - Object serialised as the JSON body.
+   * @param headers - Optional extra headers merged into the request.
+   */
   async postJson(
     path: string,
     payload: Record<string, unknown>,
@@ -95,54 +112,9 @@ export class HttpClient {
     throw new RetryError(lastError ?? new Error("Unknown error"));
   }
 
-  async getHtml(
-    url: string,
-    headers?: Record<string, string>
-  ): Promise<string> {
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt <= this._config.max_retries; attempt++) {
-      await this._bucket.consume();
-      this._abortController = new AbortController();
-      const timeoutId = setTimeout(
-        () => this._abortController?.abort(),
-        this._config.timeout_seconds * 1000
-      );
-
-      try {
-        const response = await fetch(url, {
-          method: "GET",
-          headers: this._headers(headers),
-          signal: this._abortController.signal,
-        });
-        clearTimeout(timeoutId);
-        this._abortController = null;
-
-        if (response.ok) {
-          return await response.text();
-        }
-
-        const body = await response.text();
-        const err = new HttpError(response.status, url, body);
-        lastError = err;
-        if (response.status >= 500 && response.status < 600 && attempt < this._config.max_retries) {
-          continue;
-        }
-        throw err;
-      } catch (e) {
-        clearTimeout(timeoutId);
-        this._abortController = null;
-        if (e instanceof HttpError) throw e;
-        lastError = e instanceof Error ? e : new Error(String(e));
-        if (attempt >= this._config.max_retries) {
-          throw new RetryError(lastError);
-        }
-      }
-    }
-
-    throw new RetryError(lastError ?? new Error("Unknown error"));
-  }
-
+  /**
+   * Aborts any in-flight request. Safe to call multiple times.
+   */
   close(): void {
     this._abortController?.abort();
   }

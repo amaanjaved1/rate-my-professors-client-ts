@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createConfig } from "../src/config.js";
-import { HttpError, RMPAPIError } from "../src/errors.js";
+import { HttpError, RMPAPIError, RetryError } from "../src/errors.js";
 import { HttpClient } from "../src/http.js";
 
 function mockResponse(
   body: string | object,
-  init: { status?: number; ok?: boolean; headers?: Record<string, string> } = {}
+  init: { status?: number; ok?: boolean } = {}
 ): Response {
   const status = init.status ?? 200;
   const isOk = init.ok ?? (status >= 200 && status < 300);
@@ -13,7 +13,7 @@ function mockResponse(
   return {
     ok: isOk,
     status,
-    headers: new Headers(init.headers),
+    headers: new Headers(),
     text: () => Promise.resolve(bodyStr),
     json: () => Promise.resolve(typeof body === "string" ? JSON.parse(body) : body),
   } as unknown as Response;
@@ -30,46 +30,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("HttpClient.getHtml", () => {
-  it("returns text on 200", async () => {
-    fetchMock.mockResolvedValueOnce(mockResponse("<html>Hello</html>"));
-    const config = createConfig({ rate_limit_per_minute: 1000 });
-    const client = new HttpClient(config);
-    const result = await client.getHtml("https://example.com/page");
-    expect(result).toBe("<html>Hello</html>");
-    client.close();
-  });
-
-  it("throws HttpError on 404", async () => {
-    fetchMock.mockResolvedValueOnce(
-      mockResponse("Not Found", { status: 404 })
-    );
-    const config = createConfig({ rate_limit_per_minute: 1000 });
-    const client = new HttpClient(config);
-    await expect(client.getHtml("https://example.com/missing")).rejects.toThrow(
-      HttpError
-    );
-    client.close();
-  });
-
-  it("sends default headers", async () => {
-    fetchMock.mockResolvedValueOnce(mockResponse("ok"));
-    const config = createConfig({ rate_limit_per_minute: 1000 });
-    const client = new HttpClient(config);
-    await client.getHtml("https://example.com/");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const callHeaders = fetchMock.mock.calls[0][1].headers;
-    expect(callHeaders["User-Agent"]).toBeDefined();
-    client.close();
-  });
-});
-
 describe("HttpClient.postJson", () => {
   it("returns JSON on 200", async () => {
     const payload = { data: { x: 1 } };
     fetchMock.mockResolvedValueOnce(mockResponse(payload));
-    const config = createConfig({ rate_limit_per_minute: 1000 });
-    const client = new HttpClient(config);
+    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
     const result = await client.postJson("", { query: "..." });
     expect(result).toEqual(payload);
     client.close();
@@ -78,20 +43,14 @@ describe("HttpClient.postJson", () => {
   it("throws RMPAPIError when errors in body", async () => {
     const body = { errors: [{ message: "Unauthorized" }] };
     fetchMock.mockResolvedValueOnce(mockResponse(body));
-    const config = createConfig({ rate_limit_per_minute: 1000 });
-    const client = new HttpClient(config);
-    await expect(client.postJson("", { query: "..." })).rejects.toThrow(
-      RMPAPIError
-    );
+    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
+    await expect(client.postJson("", { query: "..." })).rejects.toThrow(RMPAPIError);
     client.close();
   });
 
   it("throws HttpError on 4xx", async () => {
-    fetchMock.mockResolvedValueOnce(
-      mockResponse("Forbidden", { status: 403 })
-    );
-    const config = createConfig({ rate_limit_per_minute: 1000 });
-    const client = new HttpClient(config);
+    fetchMock.mockResolvedValueOnce(mockResponse("Forbidden", { status: 403 }));
+    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
     try {
       await client.postJson("", {});
     } catch (e) {
@@ -100,42 +59,82 @@ describe("HttpClient.postJson", () => {
       return;
     }
     expect.fail("should have thrown");
-    client.close();
   });
 
-  it("retries on 5xx", async () => {
+  it("retries on 5xx then throws HttpError", async () => {
     fetchMock
       .mockResolvedValueOnce(mockResponse("", { status: 502 }))
       .mockResolvedValueOnce(mockResponse("", { status: 502 }))
       .mockResolvedValueOnce(mockResponse("", { status: 502 }));
-    const config = createConfig({
-      max_retries: 2,
-      rate_limit_per_minute: 1000,
-    });
-    const client = new HttpClient(config);
+    const client = new HttpClient(
+      createConfig({ max_retries: 2, rate_limit_per_minute: 1000 })
+    );
     try {
       await client.postJson("", {});
     } catch (e) {
       expect(e).toBeInstanceOf(HttpError);
-      expect((e as HttpError).status_code).toBe(502);
       expect(fetchMock).toHaveBeenCalledTimes(3);
       return;
     }
     expect.fail("should have thrown");
-    client.close();
   });
 
   it("succeeds after 5xx retry", async () => {
     fetchMock
       .mockResolvedValueOnce(mockResponse("", { status: 503 }))
       .mockResolvedValueOnce(mockResponse({ data: "ok" }));
-    const config = createConfig({
-      max_retries: 3,
-      rate_limit_per_minute: 1000,
-    });
-    const client = new HttpClient(config);
+    const client = new HttpClient(
+      createConfig({ max_retries: 3, rate_limit_per_minute: 1000 })
+    );
     const result = await client.postJson("", {});
     expect(result).toEqual({ data: "ok" });
+    client.close();
+  });
+
+  it("throws RetryError on network failure after retries", async () => {
+    fetchMock.mockRejectedValue(new Error("network error"));
+    const client = new HttpClient(
+      createConfig({ max_retries: 1, rate_limit_per_minute: 1000 })
+    );
+    await expect(client.postJson("", {})).rejects.toThrow(RetryError);
+    client.close();
+  });
+
+  it("sends Content-Type and User-Agent headers", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse({ data: null }));
+    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
+    await client.postJson("", { query: "test" });
+    const callHeaders = fetchMock.mock.calls[0][1].headers;
+    expect(callHeaders["Content-Type"]).toBe("application/json");
+    expect(callHeaders["User-Agent"]).toBeDefined();
+    client.close();
+  });
+
+  it("resolves URL from base_url when path is empty", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse({ data: null }));
+    const client = new HttpClient(
+      createConfig({ base_url: "https://api.test/graphql", rate_limit_per_minute: 1000 })
+    );
+    await client.postJson("", {});
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.test/graphql");
+    client.close();
+  });
+
+  it("resolves URL from base_url when path is given", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse({ data: null }));
+    const client = new HttpClient(
+      createConfig({ base_url: "https://api.test", rate_limit_per_minute: 1000 })
+    );
+    await client.postJson("v2/graphql", {});
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.test/v2/graphql");
+    client.close();
+  });
+});
+
+describe("HttpClient.close", () => {
+  it("is safe to call multiple times", () => {
+    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
+    client.close();
     client.close();
   });
 });

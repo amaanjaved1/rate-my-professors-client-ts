@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configuration &mdash; RMP Client</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>RMP Client</h2>
+    <nav>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="functions.html">Functions</a></li>
+        <li><a href="types.html">Types</a></li>
+        <li><a href="errors.html">Errors</a></li>
+        <li><a href="configuration.html" class="active">Configuration</a></li>
+        <li><a href="extras.html">Extras</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <h1>Configuration</h1>
+    <p>
+      The client's behavior is controlled by a <code>RMPClientConfig</code> object.
+      Build one with <code>createConfig()</code> and pass it to the constructor.
+      If you don't pass config, the client uses sensible defaults.
+    </p>
+
+    <h2>Default Usage</h2>
+    <pre><code>import { RMPClient } from "ratemyprofessors-client";
+
+// Uses all defaults
+const client = new RMPClient();</code></pre>
+
+    <h2>Custom Configuration</h2>
+    <pre><code>import { RMPClient, createConfig } from "ratemyprofessors-client";
+
+const client = new RMPClient(
+  createConfig({
+    rate_limit_per_minute: 30,
+    max_retries: 5,
+    timeout_seconds: 15,
+  })
+);</code></pre>
+
+    <h2>createConfig</h2>
+    <div class="method-sig">createConfig(overrides?: Partial&lt;RMPClientConfig&gt;): RMPClientConfig</div>
+    <p>Builds a full config by merging your overrides onto the defaults. Only the fields you provide are overridden; everything else keeps its default.</p>
+
+    <h2>RMPClientConfig</h2>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+      <tr>
+        <td><code>base_url</code></td>
+        <td><code>string</code></td>
+        <td><code>"https://www.ratemyprofessors.com/graphql"</code></td>
+        <td>GraphQL endpoint URL</td>
+      </tr>
+      <tr>
+        <td><code>timeout_seconds</code></td>
+        <td><code>number</code></td>
+        <td><code>10</code></td>
+        <td>Request timeout in seconds</td>
+      </tr>
+      <tr>
+        <td><code>max_retries</code></td>
+        <td><code>number</code></td>
+        <td><code>3</code></td>
+        <td>Maximum retries on 5xx or network errors</td>
+      </tr>
+      <tr>
+        <td><code>rate_limit_per_minute</code></td>
+        <td><code>number</code></td>
+        <td><code>60</code></td>
+        <td>Maximum requests per minute (token bucket). Requests exceeding this are delayed until a token is available.</td>
+      </tr>
+      <tr>
+        <td><code>user_agent</code></td>
+        <td><code>string</code></td>
+        <td>Firefox UA string</td>
+        <td>User-Agent header sent with every request</td>
+      </tr>
+      <tr>
+        <td><code>default_headers</code></td>
+        <td><code>Record&lt;string, string&gt;</code></td>
+        <td>User-Agent + Accept-Language</td>
+        <td>Headers merged into every request</td>
+      </tr>
+    </table>
+
+    <h2>Rate Limiting</h2>
+    <p>
+      The client uses a <strong>token bucket</strong> algorithm. The bucket holds up to
+      <code>rate_limit_per_minute</code> tokens and refills at a continuous rate
+      (one token every <code>60 / rate_limit_per_minute</code> seconds). Each request
+      consumes one token. If the bucket is empty, the request waits until a token becomes available.
+    </p>
+    <p>
+      For example, with the default of 60 requests per minute, one token refills every second.
+      If you send a burst of 60 requests, the 61st will wait ~1 second before proceeding.
+    </p>
+    <pre><code>// Lower rate for polite scraping
+const client = new RMPClient(
+  createConfig({ rate_limit_per_minute: 10 })
+);
+
+// Higher rate for batch jobs
+const client = new RMPClient(
+  createConfig({ rate_limit_per_minute: 120 })
+);</code></pre>
+
+    <h2>Retries</h2>
+    <p>
+      Failed requests (5xx status codes or network errors) are retried up to <code>max_retries</code>
+      times with exponential backoff. If all retries fail, a
+      <a href="errors.html#RetryError"><code>RetryError</code></a> is thrown containing the last underlying error.
+    </p>
+    <pre><code>// More resilient client
+const client = new RMPClient(
+  createConfig({ max_retries: 5 })
+);</code></pre>
+
+    <h2>Timeouts</h2>
+    <p>
+      Each individual request has a timeout of <code>timeout_seconds</code>.
+      If a request takes longer, it's aborted and counted as a failure (potentially retried).
+    </p>
+    <pre><code>// Longer timeout for slow networks
+const client = new RMPClient(
+  createConfig({ timeout_seconds: 30 })
+);</code></pre>
+  </main>
+</body>
+</html>

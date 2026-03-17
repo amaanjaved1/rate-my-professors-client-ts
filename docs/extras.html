@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Extras &mdash; RMP Client</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>RMP Client</h2>
+    <nav>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="functions.html">Functions</a></li>
+        <li><a href="types.html">Types</a></li>
+        <li><a href="errors.html">Errors</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a href="extras.html" class="active">Extras</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <h1>Extras</h1>
+    <p>
+      Optional helpers for data pipelines &mdash; deduplication, course code normalization, and
+      sentiment analysis. Import from the <code>extras</code> subpath:
+    </p>
+    <pre><code>import {
+  normalizeComment,
+  isValidComment,
+  cleanCourseLabel,
+  buildCourseMapping,
+  analyzeSentiment,
+} from "ratemyprofessors-client/extras";</code></pre>
+
+    <!-- Deduplication -->
+    <h2>Deduplication</h2>
+
+    <h3>normalizeComment</h3>
+    <div class="method-sig">normalizeComment(text: string): string</div>
+    <p>
+      Normalizes text for comparison by trimming, lowercasing, and collapsing whitespace.
+      Useful for detecting duplicate reviews.
+    </p>
+    <pre><code>const a = normalizeComment("  Great  Professor!  ");
+const b = normalizeComment("great professor!");
+console.log(a === b); // true</code></pre>
+
+    <h3>isValidComment</h3>
+    <div class="method-sig">isValidComment(text: string, minLen?: number): boolean</div>
+    <p>
+      Returns whether a comment is non-empty and at least <code>minLen</code> characters long (default 10).
+      Use to filter out low-quality or blank reviews.
+    </p>
+    <table>
+      <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+      <tr><td><code>text</code></td><td><code>string</code></td><td>&mdash;</td><td>Comment text</td></tr>
+      <tr><td><code>minLen</code></td><td><code>number</code></td><td><code>10</code></td><td>Minimum character length</td></tr>
+    </table>
+    <pre><code>isValidComment("Good");       // false (too short)
+isValidComment("Great class, learned a lot"); // true</code></pre>
+
+    <!-- Course Codes -->
+    <h2>Course Codes</h2>
+
+    <h3>cleanCourseLabel</h3>
+    <div class="method-sig">cleanCourseLabel(raw: string): string</div>
+    <p>
+      Cleans a scraped course label by removing parenthesized counts and normalizing whitespace.
+    </p>
+    <pre><code>cleanCourseLabel("CS 101 (42)"); // "CS 101"</code></pre>
+
+    <h3>buildCourseMapping</h3>
+    <div class="method-sig">buildCourseMapping(scrapedLabels: Iterable&lt;string&gt;, validCourses: Iterable&lt;string&gt;): Map&lt;string, Set&lt;string&gt; | null&gt;</div>
+    <p>
+      Maps scraped course labels to valid course codes. Returns a <code>Map</code> where each key
+      is a cleaned label and the value is either a <code>Set</code> of matching course codes
+      or <code>null</code> when the label is ambiguous or unknown.
+    </p>
+    <table>
+      <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>scrapedLabels</code></td><td><code>Iterable&lt;string&gt;</code></td><td>Labels scraped from RMP (e.g. from rating <code>course_raw</code>)</td></tr>
+      <tr><td><code>validCourses</code></td><td><code>Iterable&lt;string&gt;</code></td><td>Known valid course codes from your institution</td></tr>
+    </table>
+    <pre><code>const mapping = buildCourseMapping(
+  ["CS 101 (42)", "MATH200"],
+  ["CS101", "CS102", "MATH200"]
+);
+// Map { "CS 101" => Set { "CS101" }, "MATH200" => Set { "MATH200" } }</code></pre>
+
+    <!-- Sentiment -->
+    <h2>Sentiment</h2>
+
+    <h3>analyzeSentiment</h3>
+    <div class="method-sig">analyzeSentiment(text: string, getPolarity: (text: string) =&gt; number): SentimentResult</div>
+    <p>
+      Computes a sentiment label from a polarity score. You provide a polarity function
+      (e.g. from a sentiment library) that returns a number in [-1, 1].
+    </p>
+    <table>
+      <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>text</code></td><td><code>string</code></td><td>The text to analyze</td></tr>
+      <tr><td><code>getPolarity</code></td><td><code>(text: string) =&gt; number</code></td><td>Function returning polarity in [-1, 1]</td></tr>
+    </table>
+    <p><strong>Returns:</strong> <code>SentimentResult</code></p>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>score</code></td><td><code>number</code></td><td>Raw polarity score</td></tr>
+      <tr><td><code>label</code></td><td><code>SentimentLabel</code></td><td>One of: <code>"very positive"</code>, <code>"positive"</code>, <code>"neutral"</code>, <code>"negative"</code>, <code>"very negative"</code></td></tr>
+    </table>
+    <pre><code>const result = analyzeSentiment("Amazing professor!", myPolarityFn);
+console.log(result.label); // "very positive"
+console.log(result.score); // 0.85</code></pre>
+  </main>
+</body>
+</html>

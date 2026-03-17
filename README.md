@@ -1,8 +1,13 @@
 # RateMyProfessors API Client (TypeScript)
 
-Typed, retrying, rate-limited unofficial client for RateMyProfessors, with optional helpers for ingestion workflows (sentiment, dedupe, course-code normalization).
+A typed, retrying, rate-limited **unofficial** client for [RateMyProfessors](https://www.ratemyprofessors.com).
 
-> Note: This library is **unofficial** and may break if RMP changes their internal API.
+> **Disclaimer:** This library is unofficial and may break if RMP changes their internal API. Use responsibly and respect rate limits.
+
+## Requirements
+
+- **Node.js 18** or later
+- Works in both TypeScript and JavaScript projects (types included)
 
 ## Installation
 
@@ -10,78 +15,92 @@ Typed, retrying, rate-limited unofficial client for RateMyProfessors, with optio
 npm install ratemyprofessors-client
 ```
 
-## Quickstart
+## Available Functions
+
+Create a client and call any of these methods. See the [full docs](https://amaanjaved1.github.io/rate-my-professors-client-ts/) for parameters, return types, and examples.
 
 ```typescript
 import { RMPClient } from "ratemyprofessors-client";
-
-const SCHOOL_ID = 1466; // example: Queen's University ID on RMP
-
 const client = new RMPClient();
+```
+
+**Schools**
+
+- `searchSchools(query)` — Search schools by name. Returns paginated results.
+- `getSchool(schoolId)` — Get a single school by its numeric ID.
+- `getCompareSchools(schoolId1, schoolId2)` — Fetch two schools side by side.
+- `getSchoolRatingsPage(schoolId)` — Get one page of school ratings (cached after first fetch).
+- `iterSchoolRatings(schoolId)` — Async iterator over all ratings for a school.
+
+**Professors**
+
+- `searchProfessors(query)` — Search professors by name. Returns paginated results.
+- `listProfessorsForSchool(schoolId)` — List professors at a given school.
+- `iterProfessorsForSchool(schoolId)` — Async iterator over all professors at a school.
+- `getProfessor(professorId)` — Get a single professor by their numeric ID.
+- `getProfessorRatingsPage(professorId)` — Get one page of professor ratings (cached after first fetch).
+- `iterProfessorRatings(professorId)` — Async iterator over all ratings for a professor.
+
+**Low-level**
+
+- `rawQuery(payload)` — Send a raw GraphQL payload to the RMP endpoint.
+
+**Lifecycle**
+
+- `close()` — Close the client, abort in-flight requests, and clear caches.
+
+## Errors and What They Mean
+
+All errors extend `RMPError`. Catch and narrow with `instanceof`:
+
+- **`HttpError`** — The server returned a non-2xx status code (e.g. 404, 500).
+- **`ParsingError`** — The response couldn't be parsed (e.g. professor/school not found).
+- **`RateLimitError`** — The client's local rate limiter blocked the request.
+- **`RetryError`** — The request failed after all retry attempts. Contains the last underlying error.
+- **`RMPAPIError`** — The GraphQL API returned an `errors` array in the response.
+- **`ConfigurationError`** — Invalid client configuration (e.g. missing URL).
+
+```typescript
+import { RMPClient, HttpError, ParsingError } from "ratemyprofessors-client";
+
 try {
-  for await (const prof of client.iterProfessorsForSchool(SCHOOL_ID, { page_size: 20 })) {
-    console.log(prof.name, prof.overall_rating, prof.num_ratings);
-  }
-} finally {
-  await client.close();
+  const prof = await client.getProfessor(id);
+} catch (e) {
+  if (e instanceof ParsingError) console.error("Not found:", e.message);
+  else if (e instanceof HttpError) console.error("HTTP", e.status_code);
+  else throw e;
 }
 ```
 
-Fetch details and iterate ratings:
+## Types
+
+All methods return typed data. Import any of these interfaces:
 
 ```typescript
-import { RMPClient } from "ratemyprofessors-client";
-
-const client = new RMPClient();
-try {
-  const professor = await client.getProfessor("PROFESSOR_ID");
-
-  for await (const rating of client.iterProfessorRatings(professor.id, {
-    since: new Date("2024-01-01"),
-  })) {
-    console.log(rating.date, rating.quality, rating.comment);
-  }
-} finally {
-  await client.close();
-}
+import type {
+  School,
+  Professor,
+  Rating,
+  SchoolRating,
+  ProfessorSearchResult,
+  SchoolSearchResult,
+  ProfessorRatingsPage,
+  SchoolRatingsPage,
+  CompareSchoolsResult,
+} from "ratemyprofessors-client";
 ```
 
-## Configuration
-
-Config can be passed to the client or read from the environment:
-
-- `RMP_CLIENT_BASE_URL` – GraphQL endpoint (default: `https://www.ratemyprofessors.com/graphql`)
-- `RMP_CLIENT_TIMEOUT_SECONDS` – Request timeout (default: `10`)
-- `RMP_CLIENT_MAX_RETRIES` – Retries on failure (default: `3`)
-- `RMP_CLIENT_RATE_LIMIT_PER_MINUTE` – Max requests per minute (default: `60`)
-
-```typescript
-import { RMPClient, createConfig } from "ratemyprofessors-client";
-
-const client = new RMPClient(
-  createConfig({
-    base_url: "https://www.ratemyprofessors.com/graphql",
-    rate_limit_per_minute: 30,
-  })
-);
-```
-
-## API
-
-- `rawQuery(payload)` – Send a raw JSON/GraphQL payload
-- `searchSchools(query, { page, page_size })` – Search schools by name
-- `searchProfessors(query, { school_id, page, page_size })` – Search professors
-- `listProfessorsForSchool(school_id, { query, page, page_size })` – List professors at a school
-- `iterProfessorsForSchool(school_id, { query, page_size })` – Async iterator over all professors at a school
-- `getProfessor(professor_id)` – Get one professor by ID
-- `getProfessorRatingsPage(professor_id, { cursor, page_size })` – One page of ratings
-- `iterProfessorRatings(professor_id, { page_size, since })` – Async iterator over ratings
-
-All methods that perform I/O are `async` and return Promises (or async iterators).
+- **`School`** — ID, name, location, overall quality, category ratings (reputation, safety, etc.)
+- **`Professor`** — ID, name, department, school, overall rating, difficulty, percent take again
+- **`Rating`** — Date, comment, quality, difficulty, tags, course, thumbs up/down
+- **`SchoolRating`** — Date, comment, overall score, category ratings, thumbs up/down
+- **`ProfessorSearchResult`** / **`SchoolSearchResult`** — Paginated list with `has_next_page` and `next_cursor`
+- **`ProfessorRatingsPage`** / **`SchoolRatingsPage`** — One page of ratings with cursor pagination
+- **`CompareSchoolsResult`** — A pair of schools
 
 ## Extras
 
-Optional helpers are under the `extras` subpath:
+Optional helpers for data pipelines are available under the `extras` subpath:
 
 ```typescript
 import {
@@ -93,14 +112,8 @@ import {
 } from "ratemyprofessors-client/extras";
 ```
 
-- **dedupe**: `normalizeComment(text)`, `isValidComment(text, minLen?)`
-- **course_codes**: `cleanCourseLabel(raw)`, `buildCourseMapping(scrapedLabels, validCourses)`
-- **sentiment**: `analyzeSentiment(text, getPolarity)` – you provide a polarity function (e.g. from a sentiment library)
-
-## Publishing to npm
-
-1. Log in: `npm login`
-2. Bump version in `package.json` (or use `npm version patch`)
-3. Build and publish: `npm run build && npm publish`
-
-For scoped or public publish, ensure `package.json` `name` and `repository` match your npm package.
+- `normalizeComment(text)` — Normalize text for deduplication (lowercase, collapse whitespace)
+- `isValidComment(text, minLen?)` — Check if a comment is non-empty and meets a minimum length
+- `cleanCourseLabel(raw)` — Clean scraped course labels (remove counts, normalize whitespace)
+- `buildCourseMapping(scraped, valid)` — Map scraped labels to known course codes
+- `analyzeSentiment(text, getPolarity)` — Compute sentiment label from a polarity function
