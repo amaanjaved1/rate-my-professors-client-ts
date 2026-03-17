@@ -43,7 +43,7 @@ const defaultHeaders: Record<string, string> = {
  * @returns A complete {@link RMPClientConfig}.
  */
 export function createConfig(
-  overrides: Partial<RMPClientConfig> = {}
+  overrides: Partial<RMPClientConfig> = {},
 ): RMPClientConfig {
   return {
     base_url: DEFAULT_BASE_URL,

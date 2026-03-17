@@ -28,25 +28,15 @@ export class HttpClient {
     );
   }
 
-  /**
-   * Merges config default headers with optional extra headers.
-   * User-Agent is always set from config.
-   */
   private _headers(extra?: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = {
       ...this._config.default_headers,
       "User-Agent": this._config.user_agent,
     };
-    if (extra) {
-      Object.assign(headers, extra);
-    }
+    if (extra) Object.assign(headers, extra);
     return headers;
   }
 
-  /**
-   * Resolves a path (or empty string) against the config base_url.
-   * Empty path returns base_url; leading slashes are normalized.
-   */
   private _url(path: string): string {
     if (path === "") return this._config.base_url;
     const base = this._config.base_url.replace(/\/$/, "");
@@ -55,15 +45,14 @@ export class HttpClient {
   }
 
   /**
-   * Sends a POST request with JSON body. Respects rate limit, timeout, and retries.
-   * On success returns the parsed JSON object. If the response contains an `errors`
-   * property (RMP GraphQL style), throws {@link RMPAPIError}. On non-2xx status
-   * throws {@link HttpError}; after exhausting retries throws {@link RetryError}.
+   * Sends a POST request with a JSON body. Respects rate limit, timeout, and
+   * retries. Throws {@link RMPAPIError} if the response contains a GraphQL
+   * `errors` key. Throws {@link HttpError} on non-2xx status. Throws
+   * {@link RetryError} after exhausting all retries.
    *
-   * @param path - Path or "" for base URL.
-   * @param payload - Object to send as JSON body.
-   * @param headers - Optional extra headers.
-   * @returns The response body as a record (no `errors` key on success).
+   * @param path - Path appended to base_url, or "" to POST directly to base_url.
+   * @param payload - Object serialised as the JSON body.
+   * @param headers - Optional extra headers merged into the request.
    */
   async postJson(
     path: string,
@@ -124,8 +113,7 @@ export class HttpClient {
   }
 
   /**
-   * Aborts any in-flight request (e.g. when shutting down the client).
-   * Safe to call multiple times.
+   * Aborts any in-flight request. Safe to call multiple times.
    */
   close(): void {
     this._abortController?.abort();

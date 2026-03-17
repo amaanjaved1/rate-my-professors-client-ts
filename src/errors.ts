@@ -36,7 +36,7 @@ export class HttpError extends RMPError {
   constructor(
     public readonly status_code: number,
     public readonly url: string,
-    public readonly body?: string
+    public readonly body?: string,
   ) {
     super(`HTTP ${status_code} for ${url}`);
     this.name = "HttpError";
@@ -75,7 +75,7 @@ export class RetryError extends RMPError {
 export class RMPAPIError extends RMPError {
   constructor(
     message: string,
-    public readonly details?: unknown
+    public readonly details?: unknown,
   ) {
     super(message);
     this.name = "RMPAPIError";
