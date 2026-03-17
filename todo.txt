@@ -1,2 +1,0 @@
-Improve "extra" functionalities
-update model inside of models -> helpful
