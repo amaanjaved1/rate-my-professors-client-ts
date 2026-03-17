@@ -226,7 +226,7 @@ export class RMPClient {
     const cursor = options.cursor ?? "";
     const queryVar: Mapping = { text: query };
     if (options.school_id != null) {
-      queryVar.schoolID = options.school_id;
+      queryVar.schoolID = schoolNodeId(options.school_id);
     }
 
     const data = await this.rawQuery({
@@ -281,7 +281,7 @@ export class RMPClient {
       cursor?: string | null;
     } = {}
   ): Promise<ProfessorSearchResult> {
-    return this.searchProfessors(options.query ?? "", {
+    return this.searchProfessors(options.query || " ", {
       school_id: String(school_id),
       page_size: options.page_size ?? 20,
       cursor: options.cursor,
