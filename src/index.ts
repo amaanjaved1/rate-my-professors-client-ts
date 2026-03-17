@@ -21,7 +21,6 @@
 export { RMPClient } from "./client.js";
 export {
   createConfig,
-  configFromEnv,
   DEFAULT_BASE_URL,
   type RMPClientConfig,
 } from "./config.js";

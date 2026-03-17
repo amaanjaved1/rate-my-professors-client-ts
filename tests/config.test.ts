@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createConfig, configFromEnv, DEFAULT_BASE_URL } from "../src/config.js";
+import { createConfig, DEFAULT_BASE_URL } from "../src/config.js";
 
 describe("createConfig defaults", () => {
   it("base_url", () => {
@@ -36,9 +36,9 @@ describe("createConfig overrides", () => {
   });
 });
 
-describe("configFromEnv", () => {
+describe("createConfig with no args", () => {
   it("returns valid config with all fields", () => {
-    const c = configFromEnv();
+    const c = createConfig();
     expect(c.base_url).toBe(DEFAULT_BASE_URL);
     expect(c.timeout_seconds).toBe(10);
     expect(c.max_retries).toBe(3);

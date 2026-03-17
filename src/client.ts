@@ -8,7 +8,7 @@
  */
 
 import type { RMPClientConfig } from "./config.js";
-import { configFromEnv } from "./config.js";
+import { createConfig } from "./config.js";
 import { ParsingError } from "./errors.js";
 import { HttpClient } from "./http.js";
 import type {
@@ -304,7 +304,7 @@ function parseDate(dateStr: unknown): Date {
 /**
  * Main client for the RateMyProfessors GraphQL API.
  *
- * Use {@link createConfig} or {@link configFromEnv} to build config, then instantiate.
+ * Use {@link createConfig} to build config, then instantiate.
  * All methods are async; call {@link close} when finished to release resources.
  */
 export class RMPClient {
@@ -322,7 +322,7 @@ export class RMPClient {
   >();
 
   constructor(config?: RMPClientConfig | null) {
-    this._config = config ?? configFromEnv();
+    this._config = config ?? createConfig();
   }
 
   private _getClient(): HttpClient {
