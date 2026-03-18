@@ -19,8 +19,13 @@ query RatingsListQuery($count: Int!, $id: ID!, $courseFilter: String, $cursor: S
 fragment RatingsList_teacher_4pguUW on Teacher {
   id
   legacyId
+  firstName
   lastName
+  department
+  avgRating
+  avgDifficulty
   numRatings
+  wouldTakeAgainPercent
   school {
     id
     legacyId
@@ -59,10 +64,25 @@ query SchoolRatingsListQuery($count: Int!, $id: ID!, $cursor: String) {
   node(id: $id) {
     ... on School {
       id
+      legacyId
       name
       city
       state
       country
+      numRatings
+      avgRatingRounded
+      summary {
+        campusCondition
+        campusLocation
+        careerOpportunities
+        clubAndEventActivities
+        foodQuality
+        internetSpeed
+        schoolReputation
+        schoolSafety
+        schoolSatisfaction
+        socialActivities
+      }
       ratings(first: $count, after: $cursor) {
         edges {
           cursor
@@ -153,62 +173,6 @@ query TeacherSearchResultsPageQuery($query: TeacherSearchQuery!, $count: Int!, $
         endCursor
       }
       resultCount
-    }
-  }
-}
-`;
-
-/** Fetch a single teacher by Relay global ID. */
-export const GET_TEACHER_QUERY = `
-query GetTeacherQuery($id: ID!) {
-  node(id: $id) {
-    ... on Teacher {
-      id
-      legacyId
-      firstName
-      lastName
-      department
-      avgRating
-      avgDifficulty
-      numRatings
-      wouldTakeAgainPercent
-      school {
-        id
-        legacyId
-        name
-        city
-        state
-      }
-    }
-  }
-}
-`;
-
-/** Fetch a single school by Relay global ID, including summary category ratings. */
-export const GET_SCHOOL_QUERY = `
-query GetSchoolQuery($id: ID!) {
-  node(id: $id) {
-    ... on School {
-      id
-      legacyId
-      name
-      city
-      state
-      country
-      numRatings
-      avgRatingRounded
-      summary {
-        campusCondition
-        campusLocation
-        careerOpportunities
-        clubAndEventActivities
-        foodQuality
-        internetSpeed
-        schoolReputation
-        schoolSafety
-        schoolSatisfaction
-        socialActivities
-      }
     }
   }
 }

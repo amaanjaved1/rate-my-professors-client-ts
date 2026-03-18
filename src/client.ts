@@ -23,8 +23,6 @@ import type {
   SchoolSearchResult,
 } from "./models.js";
 import {
-  GET_SCHOOL_QUERY,
-  GET_TEACHER_QUERY,
   RATINGS_LIST_QUERY,
   SCHOOL_RATINGS_LIST_QUERY,
   SCHOOL_SEARCH_RESULTS_QUERY,
@@ -60,7 +58,7 @@ function schoolNodeId(schoolId: string): string {
  */
 function formatLocation(record: Mapping): string | null {
   const parts = [record.city, record.state, record.country].filter(
-    (p): p is string => typeof p === "string" && p.trim() !== ""
+    (p): p is string => typeof p === "string" && p.trim() !== "",
   );
   return parts.length > 0 ? parts.join(", ") : null;
 }
@@ -162,7 +160,7 @@ export class RMPClient {
    */
   async searchSchools(
     query: string,
-    options: { page_size?: number; cursor?: string | null } = {}
+    options: { page_size?: number; cursor?: string | null } = {},
   ): Promise<SchoolSearchResult> {
     const count = options.page_size ?? 20;
     const cursor = options.cursor ?? "";
@@ -190,7 +188,9 @@ export class RMPClient {
     const schools: School[] = [];
     for (const edge of edges) {
       const node =
-        typeof edge === "object" && edge !== null ? (edge.node as Mapping) : null;
+        typeof edge === "object" && edge !== null
+          ? (edge.node as Mapping)
+          : null;
       if (!node) continue;
       schools.push(this._parseSchoolNode(node));
     }
@@ -200,7 +200,8 @@ export class RMPClient {
       total: safeInt(conn.resultCount),
       page_size: schools.length,
       has_next_page: Boolean(pageInfo.hasNextPage),
-      next_cursor: pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
+      next_cursor:
+        pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
     };
   }
 
@@ -220,7 +221,7 @@ export class RMPClient {
       school_id?: string | null;
       page_size?: number;
       cursor?: string | null;
-    } = {}
+    } = {},
   ): Promise<ProfessorSearchResult> {
     const count = options.page_size ?? 20;
     const cursor = options.cursor ?? "";
@@ -252,7 +253,9 @@ export class RMPClient {
     const professors: Professor[] = [];
     for (const edge of edges) {
       const node =
-        typeof edge === "object" && edge !== null ? (edge.node as Mapping) : null;
+        typeof edge === "object" && edge !== null
+          ? (edge.node as Mapping)
+          : null;
       if (!node) continue;
       professors.push(this._parseProfessorNode(node));
     }
@@ -262,7 +265,8 @@ export class RMPClient {
       total: safeInt(conn.resultCount),
       page_size: professors.length,
       has_next_page: Boolean(pageInfo.hasNextPage),
-      next_cursor: pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
+      next_cursor:
+        pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
     };
   }
 
@@ -279,7 +283,7 @@ export class RMPClient {
       query?: string | null;
       page_size?: number;
       cursor?: string | null;
-    } = {}
+    } = {},
   ): Promise<ProfessorSearchResult> {
     return this.searchProfessors(options.query || " ", {
       school_id: String(school_id),
@@ -294,7 +298,7 @@ export class RMPClient {
    */
   async *iterProfessorsForSchool(
     school_id: number,
-    options: { query?: string | null; page_size?: number } = {}
+    options: { query?: string | null; page_size?: number } = {},
   ): AsyncGenerator<Professor> {
     let cursor: string | null = null;
     while (true) {
@@ -306,7 +310,12 @@ export class RMPClient {
       for (const prof of result.professors) {
         yield prof;
       }
-      if (!result.has_next_page || !result.next_cursor || result.professors.length === 0) break;
+      if (
+        !result.has_next_page ||
+        !result.next_cursor ||
+        result.professors.length === 0
+      )
+        break;
       cursor = result.next_cursor;
     }
   }
@@ -314,25 +323,17 @@ export class RMPClient {
   // ---- Professor details + ratings -------------------------------------------
 
   /**
-   * Fetches a single professor by their legacy numeric id (GetTeacherQuery).
+   * Fetches a single professor by their legacy numeric id.
+   * Uses the ratings list query with a minimal page size to retrieve
+   * full teacher details in a single request.
    *
    * @param professorId - Legacy numeric id from search results or RMP URL.
    */
   async getProfessor(professorId: string): Promise<Professor> {
-    const nodeId = teacherNodeId(professorId);
-    const data = await this.rawQuery({
-      operationName: "GetTeacherQuery",
-      query: GET_TEACHER_QUERY,
-      variables: { id: nodeId },
+    const page = await this._fetchProfessorRatingsPage(professorId, {
+      first: 1,
     });
-
-    const node = ((data.data as Mapping) ?? {}).node as Mapping | undefined;
-    if (!node) {
-      throw new ParsingError(
-        `Teacher not found in GraphQL response for id=${professorId}`
-      );
-    }
-    return this._parseProfessorNode(node);
+    return page.professor;
   }
 
   /**
@@ -351,7 +352,7 @@ export class RMPClient {
       cursor?: string | null;
       page_size?: number;
       course_filter?: string | null;
-    } = {}
+    } = {},
   ): Promise<ProfessorRatingsPage> {
     const pageSize = options.page_size ?? 20;
     const cursor = options.cursor ?? null;
@@ -405,7 +406,10 @@ export class RMPClient {
       after = next.has_next_page ? next.next_cursor : null;
     }
 
-    this._professorRatingsCache.set(professorId, { professor, ratings: allRatings });
+    this._professorRatingsCache.set(professorId, {
+      professor,
+      ratings: allRatings,
+    });
 
     const slice = allRatings.slice(0, pageSize);
     const hasNext = allRatings.length > pageSize;
@@ -427,7 +431,7 @@ export class RMPClient {
       page_size?: number;
       since?: Date | null;
       course_filter?: string | null;
-    } = {}
+    } = {},
   ): AsyncGenerator<Rating> {
     const pageSize = options.page_size ?? 20;
     const since = options.since ?? null;
@@ -450,26 +454,15 @@ export class RMPClient {
   // ---- School details + ratings ----------------------------------------------
 
   /**
-   * Fetches a single school by its legacy numeric id (GetSchoolQuery).
-   * Includes category summary ratings (reputation, safety, etc.) when available.
+   * Fetches a single school by its legacy numeric id.
+   * Uses the school ratings list query with a minimal page size to retrieve
+   * full school details (including category summaries) in a single request.
    *
    * @param schoolId - Legacy numeric id from search results or RMP URL.
    */
   async getSchool(schoolId: string): Promise<School> {
-    const nodeId = schoolNodeId(schoolId);
-    const data = await this.rawQuery({
-      operationName: "GetSchoolQuery",
-      query: GET_SCHOOL_QUERY,
-      variables: { id: nodeId },
-    });
-
-    const node = ((data.data as Mapping) ?? {}).node as Mapping | undefined;
-    if (!node) {
-      throw new ParsingError(
-        `School not found in GraphQL response for id=${schoolId}`
-      );
-    }
-    return this._parseSchoolNode(node);
+    const page = await this._fetchSchoolRatingsPage(schoolId, { first: 1 });
+    return page.school;
   }
 
   /**
@@ -478,7 +471,7 @@ export class RMPClient {
    */
   async getCompareSchools(
     schoolId1: string,
-    schoolId2: string
+    schoolId2: string,
   ): Promise<CompareSchoolsResult> {
     const [school_1, school_2] = await Promise.all([
       this.getSchool(schoolId1),
@@ -498,7 +491,7 @@ export class RMPClient {
    */
   async getSchoolRatingsPage(
     schoolId: string,
-    options: { cursor?: string | null; page_size?: number } = {}
+    options: { cursor?: string | null; page_size?: number } = {},
   ): Promise<SchoolRatingsPage> {
     const pageSize = options.page_size ?? 20;
     const cursor = options.cursor ?? null;
@@ -537,7 +530,10 @@ export class RMPClient {
     let after = first.has_next_page ? first.next_cursor : null;
 
     while (after != null) {
-      const next = await this._fetchSchoolRatingsPage(schoolId, { after, first: 100 });
+      const next = await this._fetchSchoolRatingsPage(schoolId, {
+        after,
+        first: 100,
+      });
       allRatings = allRatings.concat(next.ratings);
       after = next.has_next_page ? next.next_cursor : null;
     }
@@ -560,7 +556,7 @@ export class RMPClient {
    */
   async *iterSchoolRatings(
     schoolId: string,
-    options: { page_size?: number; since?: Date | null } = {}
+    options: { page_size?: number; since?: Date | null } = {},
   ): AsyncGenerator<SchoolRating> {
     const pageSize = options.page_size ?? 20;
     const since = options.since ?? null;
@@ -583,7 +579,11 @@ export class RMPClient {
 
   private async _fetchProfessorRatingsPage(
     professorId: string,
-    options: { after?: string | null; first?: number; courseFilter?: string | null }
+    options: {
+      after?: string | null;
+      first?: number;
+      courseFilter?: string | null;
+    },
   ): Promise<ProfessorRatingsPage> {
     const nodeId = teacherNodeId(professorId);
     const variables: Mapping = {
@@ -602,7 +602,7 @@ export class RMPClient {
     const node = ((data.data as Mapping) ?? {}).node as Mapping | undefined;
     if (!node) {
       throw new ParsingError(
-        "GraphQL response missing data.node (teacher not found or invalid id)"
+        "GraphQL response missing data.node (teacher not found or invalid id)",
       );
     }
 
@@ -635,7 +635,9 @@ export class RMPClient {
     const ratings: Rating[] = [];
     for (const edge of edges) {
       const r =
-        typeof edge === "object" && edge !== null ? (edge.node as Mapping) : null;
+        typeof edge === "object" && edge !== null
+          ? (edge.node as Mapping)
+          : null;
       if (r) ratings.push(this._parseRatingNode(r));
     }
 
@@ -643,13 +645,14 @@ export class RMPClient {
       professor,
       ratings,
       has_next_page: Boolean(pageInfo.hasNextPage),
-      next_cursor: pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
+      next_cursor:
+        pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
     };
   }
 
   private async _fetchSchoolRatingsPage(
     schoolId: string,
-    options: { after?: string | null; first?: number }
+    options: { after?: string | null; first?: number },
   ): Promise<SchoolRatingsPage> {
     const nodeId = schoolNodeId(schoolId);
     const variables: Mapping = {
@@ -667,17 +670,11 @@ export class RMPClient {
     const node = ((data.data as Mapping) ?? {}).node as Mapping | undefined;
     if (!node) {
       throw new ParsingError(
-        "GraphQL response missing data.node (school not found or invalid id)"
+        "GraphQL response missing data.node (school not found or invalid id)",
       );
     }
 
-    const school = this._parseSchoolNode({
-      id: node.legacyId ?? node.id ?? schoolId,
-      name: node.name,
-      city: node.city,
-      state: node.state,
-      country: node.country,
-    });
+    const school = this._parseSchoolNode(node as Mapping);
 
     const ratingsConn = (node.ratings ?? {}) as Mapping;
     const edges = (ratingsConn.edges ?? []) as Mapping[];
@@ -685,7 +682,9 @@ export class RMPClient {
     const ratings: SchoolRating[] = [];
     for (const edge of edges) {
       const r =
-        typeof edge === "object" && edge !== null ? (edge.node as Mapping) : null;
+        typeof edge === "object" && edge !== null
+          ? (edge.node as Mapping)
+          : null;
       if (r) ratings.push(this._parseSchoolRatingNode(r));
     }
 
@@ -693,7 +692,8 @@ export class RMPClient {
       school,
       ratings,
       has_next_page: Boolean(pageInfo.hasNextPage),
-      next_cursor: pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
+      next_cursor:
+        pageInfo.endCursor != null ? String(pageInfo.endCursor) : null,
     };
   }
 
@@ -721,8 +721,12 @@ export class RMPClient {
       url: node.url != null ? String(node.url) : null,
       overall_rating: safeFloat(node.avgRating ?? node.overallRating),
       num_ratings: safeInt(node.numRatings),
-      percent_take_again: safeFloat(node.wouldTakeAgainPercent ?? node.percentTakeAgain),
-      level_of_difficulty: safeFloat(node.avgDifficulty ?? node.levelOfDifficulty),
+      percent_take_again: safeFloat(
+        node.wouldTakeAgainPercent ?? node.percentTakeAgain,
+      ),
+      level_of_difficulty: safeFloat(
+        node.avgDifficulty ?? node.levelOfDifficulty,
+      ),
       tags: [],
       rating_distribution: null,
     };
@@ -735,13 +739,14 @@ export class RMPClient {
         ...record.ratingTags
           .split("--")
           .map((t: string) => t.trim())
-          .filter(Boolean)
+          .filter(Boolean),
       );
     }
 
     const details: Record<string, unknown> = {};
     if (record.isForCredit != null) details.for_credit = record.isForCredit;
-    if (record.attendanceMandatory != null) details.attendance = record.attendanceMandatory;
+    if (record.attendanceMandatory != null)
+      details.attendance = record.attendanceMandatory;
     if (record.grade != null) details.grade = record.grade;
     if (record.textbookUse != null) details.textbook = record.textbookUse;
 
@@ -771,9 +776,13 @@ export class RMPClient {
       happiness: safeFloat(summary?.schoolSatisfaction ?? node.happiness),
       facilities: safeFloat(summary?.campusCondition ?? node.facilities),
       social: safeFloat(summary?.socialActivities ?? node.social),
-      location_rating: safeFloat(summary?.campusLocation ?? node.location_rating),
+      location_rating: safeFloat(
+        summary?.campusLocation ?? node.location_rating,
+      ),
       clubs: safeFloat(summary?.clubAndEventActivities ?? node.clubs),
-      opportunities: safeFloat(summary?.careerOpportunities ?? node.opportunities),
+      opportunities: safeFloat(
+        summary?.careerOpportunities ?? node.opportunities,
+      ),
       internet: safeFloat(summary?.internetSpeed ?? node.internet),
       food: safeFloat(summary?.foodQuality ?? node.food),
     };
