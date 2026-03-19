@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.1.4
+## 2.1.5
 
 - Version bump for publish.
 
