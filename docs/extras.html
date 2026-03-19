@@ -35,24 +35,45 @@
 
   <main class="content">
     <h1>Extras</h1>
-    <p>Optional helpers for data pipelines &mdash; deduplication, course code normalization, and sentiment analysis.</p>
+    <p>Optional helpers for data pipelines &mdash; comment validation, course code normalization, and sentiment analysis.</p>
     <pre><code class="language-typescript">import { normalizeComment, isValidComment, cleanCourseLabel, buildCourseMapping, analyzeSentiment } from "ratemyprofessors-client/extras";</code></pre>
 
-    <h2 id="deduplication">Deduplication <a href="#deduplication" class="anchor">#</a></h2>
+    <h2 id="helpers">Helpers <a href="#helpers" class="anchor">#</a></h2>
 
     <h3 id="normalizeComment">normalizeComment</h3>
-    <div class="method-sig">normalizeComment(text: string): string</div>
-    <p>Normalizes text for comparison by trimming, lowercasing, and collapsing whitespace.</p>
+    <div class="method-sig">normalizeComment(text: string, options?: NormalizeOptions): string</div>
+    <p>Normalizes a comment for comparison or deduplication. Trims whitespace, strips HTML tags (opt-out), lowercases, and collapses runs of whitespace. Optionally strips punctuation for looser matching.</p>
+    <table>
+      <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+      <tr><td><code>text</code></td><td><code>string</code></td><td>&mdash;</td><td>Comment text</td></tr>
+      <tr><td><code>options.stripHtml</code></td><td><code>boolean</code></td><td><code>true</code></td><td>Remove HTML tags</td></tr>
+      <tr><td><code>options.stripPunctuation</code></td><td><code>boolean</code></td><td><code>false</code></td><td>Remove all punctuation</td></tr>
+    </table>
     <pre><code class="language-typescript">const a = normalizeComment("  Great  Professor!  ");
 const b = normalizeComment("great professor!");
-console.log(a === b); // true</code></pre>
+console.log(a === b); // true
+
+normalizeComment("&lt;b&gt;Loved&lt;/b&gt; this class"); // "loved this class"
+normalizeComment("Hello, world!", { stripPunctuation: true }); // "hello world"</code></pre>
 
     <h3 id="isValidComment">isValidComment</h3>
-    <div class="method-sig">isValidComment(text: string, minLen?: number): boolean</div>
-    <p>Returns whether a comment is non-empty and at least <code>minLen</code> characters long (default 10).</p>
-    <table><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr><tr><td><code>text</code></td><td><code>string</code></td><td>&mdash;</td><td>Comment text</td></tr><tr><td><code>minLen</code></td><td><code>number</code></td><td><code>10</code></td><td>Minimum character length</td></tr></table>
-    <pre><code class="language-typescript">isValidComment("Good");       // false (too short)
-isValidComment("Great class, learned a lot"); // true</code></pre>
+    <div class="method-sig">isValidComment(text: string, minLen?: number): ValidationResult</div>
+    <p>Validates a comment and returns detailed diagnostics. Checks for empty text, insufficient length, all-caps, excessive repeated characters, and absence of alphabetic characters.</p>
+    <table>
+      <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+      <tr><td><code>text</code></td><td><code>string</code></td><td>&mdash;</td><td>Comment text</td></tr>
+      <tr><td><code>minLen</code></td><td><code>number</code></td><td><code>10</code></td><td>Minimum character length</td></tr>
+    </table>
+    <p><strong>Returns:</strong> <code>ValidationResult</code> with <code>valid</code> (boolean) and <code>issues</code> (array of <code>CommentIssue</code>).</p>
+    <p>Each issue has a <code>code</code> (<code>"empty"</code>, <code>"too_short"</code>, <code>"all_caps"</code>, <code>"excessive_repeats"</code>, <code>"no_alpha"</code>) and a human-readable <code>message</code>.</p>
+    <pre><code class="language-typescript">isValidComment("Good");
+// { valid: false, issues: [{ code: "too_short", message: "Comment is 4 chars (minimum 10)" }] }
+
+isValidComment("Great class, learned a lot");
+// { valid: true, issues: [] }
+
+isValidComment("WORST PROF EVER!!!");
+// { valid: false, issues: [{ code: "all_caps", message: "Comment is all uppercase" }] }</code></pre>
 
     <h2 id="course-codes">Course Codes <a href="#course-codes" class="anchor">#</a></h2>
 
@@ -70,12 +91,22 @@ isValidComment("Great class, learned a lot"); // true</code></pre>
     <h2 id="sentiment">Sentiment <a href="#sentiment" class="anchor">#</a></h2>
 
     <h3 id="analyzeSentiment">analyzeSentiment</h3>
-    <div class="method-sig">analyzeSentiment(text: string, getPolarity: (text: string) =&gt; number): SentimentResult</div>
-    <p>Computes a sentiment label from a polarity score.</p>
-    <table><tr><th>Parameter</th><th>Type</th><th>Description</th></tr><tr><td><code>text</code></td><td><code>string</code></td><td>The text to analyze</td></tr><tr><td><code>getPolarity</code></td><td><code>(text: string) =&gt; number</code></td><td>Function returning polarity in [-1, 1]</td></tr></table>
-    <p><strong>Returns:</strong> <code>SentimentResult</code> with <code>score</code> (number) and <code>label</code> (string).</p>
-    <pre><code class="language-typescript">const result = analyzeSentiment("Amazing professor!", myPolarityFn);
-console.log(result.label); // "very positive"</code></pre>
+    <div class="method-sig">analyzeSentiment(text: string): SentimentResult</div>
+    <p>Analyzes the sentiment of a comment using the AFINN-165 word list and Emoji Sentiment Ranking. Runs entirely locally with no external API calls.</p>
+    <table>
+      <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>text</code></td><td><code>string</code></td><td>The text to analyze</td></tr>
+    </table>
+    <p><strong>Returns:</strong> <code>SentimentResult</code> with:</p>
+    <ul>
+      <li><code>score</code> (number) &mdash; Raw aggregate AFINN score</li>
+      <li><code>comparative</code> (number) &mdash; Normalized score per word, typically in [-1, 1]</li>
+      <li><code>label</code> (string) &mdash; <code>"very positive"</code>, <code>"positive"</code>, <code>"neutral"</code>, <code>"negative"</code>, or <code>"very negative"</code></li>
+    </ul>
+    <pre><code class="language-typescript">const result = analyzeSentiment("Amazing professor, really clear lectures!");
+console.log(result.label);       // "positive"
+console.log(result.comparative); // 0.5
+console.log(result.score);       // 3</code></pre>
   </main>
 
   <aside class="toc"><div class="toc-title">On this page</div><ul id="toc-list"></ul></aside>

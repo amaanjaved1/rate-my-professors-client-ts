@@ -114,8 +114,8 @@ import {
 } from "ratemyprofessors-client/extras";
 ```
 
-- `normalizeComment(text)` — Normalize text for deduplication (lowercase, collapse whitespace)
-- `isValidComment(text, minLen?)` — Check if a comment is non-empty and meets a minimum length
+- `normalizeComment(text, options?)` — Normalize text for deduplication (trim, strip HTML, lowercase, collapse whitespace; optionally strip punctuation)
+- `isValidComment(text, minLen?)` — Validate a comment and return `{ valid, issues }` with diagnostics (empty, too short, all caps, excessive repeats, no alpha)
 - `cleanCourseLabel(raw)` — Clean scraped course labels (remove counts, normalize whitespace)
 - `buildCourseMapping(scraped, valid)` — Map scraped labels to known course codes
-- `analyzeSentiment(text, getPolarity)` — Compute sentiment label from a polarity function
+- `analyzeSentiment(text)` — Analyze comment sentiment using the AFINN-165 lexicon (returns score, comparative, and label)
