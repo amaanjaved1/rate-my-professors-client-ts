@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.2
+
+- Docs favicon and README badge cache updates.
+
 ## 2.1.0
 
 - **Helpers** (formerly dedupe): `normalizeComment` now strips HTML by default and supports optional `stripPunctuation`; `isValidComment` returns a `ValidationResult` with `valid` and `issues` instead of a boolean, checking for empty, too short, all caps, excessive repeats, and no alphabetic characters.
