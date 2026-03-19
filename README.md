@@ -1,5 +1,7 @@
 # RateMyProfessors API Client (TypeScript)
 
+[![npm downloads](https://img.shields.io/npm/dt/ratemyprofessors-client)](https://www.npmjs.com/package/ratemyprofessors-client)
+
 A typed, retrying, rate-limited **unofficial** client for [RateMyProfessors](https://www.ratemyprofessors.com).
 
 > **Disclaimer:** This library is unofficial and may break if RMP changes their internal API. Use responsibly and respect rate limits.
