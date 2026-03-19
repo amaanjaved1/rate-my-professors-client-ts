@@ -1,6 +1,6 @@
 # RateMyProfessors API Client (TypeScript)
 
-[![npm](https://img.shields.io/npm/v/ratemyprofessors-client?color=10b981)](https://www.npmjs.com/package/ratemyprofessors-client) [![downloads](https://img.shields.io/npm/dt/ratemyprofessors-client)](https://www.npmjs.com/package/ratemyprofessors-client) [![docs](https://img.shields.io/badge/docs-website-10b981)](https://amaanjaved1.github.io/rate-my-professors-client-ts/)
+[![npm](https://img.shields.io/npm/v/ratemyprofessors-client?color=10b981&cacheSeconds=300)](https://www.npmjs.com/package/ratemyprofessors-client) [![downloads](https://img.shields.io/npm/dt/ratemyprofessors-client?cacheSeconds=300)](https://www.npmjs.com/package/ratemyprofessors-client) [![docs](https://img.shields.io/badge/docs-website-10b981?cacheSeconds=300)](https://amaanjaved1.github.io/rate-my-professors-client-ts/)
 
 A typed, retrying, rate-limited **unofficial** client for [RateMyProfessors](https://www.ratemyprofessors.com).
 
