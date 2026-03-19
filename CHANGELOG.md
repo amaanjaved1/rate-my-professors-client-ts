@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.4
+
+- Version bump for publish.
+
 ## 2.1.2
 
 - Docs favicon and README badge cache updates.
