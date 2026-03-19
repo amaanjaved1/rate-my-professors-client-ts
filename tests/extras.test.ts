@@ -26,26 +26,52 @@ describe("normalizeComment", () => {
   it("unicode preserved", () => {
     expect(normalizeComment("  Café  ")).toBe("café");
   });
+
+  it("strips HTML by default", () => {
+    expect(normalizeComment("<b>Loved</b> this class")).toBe("loved this class");
+  });
+
+  it("stripHtml option", () => {
+    expect(normalizeComment("<b>Bold</b>", { stripHtml: false })).toBe("<b>bold</b>");
+  });
+
+  it("stripPunctuation option", () => {
+    expect(normalizeComment("Hello, world!", { stripPunctuation: true })).toBe("hello world");
+  });
 });
 
 describe("isValidComment", () => {
   it("valid with default min_len", () => {
-    expect(isValidComment("this is ten!!")).toBe(true);
-    expect(isValidComment("short")).toBe(false);
+    expect(isValidComment("this is ten!!").valid).toBe(true);
+    expect(isValidComment("short").valid).toBe(false);
   });
 
   it("empty is false", () => {
-    expect(isValidComment("")).toBe(false);
-    expect(isValidComment("   ")).toBe(false);
+    expect(isValidComment("").valid).toBe(false);
+    expect(isValidComment("   ").valid).toBe(false);
   });
 
   it("custom min_len", () => {
-    expect(isValidComment("five!", 5)).toBe(true);
-    expect(isValidComment("four", 5)).toBe(false);
+    expect(isValidComment("five!", 5).valid).toBe(true);
+    expect(isValidComment("four", 5).valid).toBe(false);
   });
 
-  it("exactly min_len", () => {
-    expect(isValidComment("12345", 5)).toBe(true);
+  it("exactly min_len with alpha", () => {
+    expect(isValidComment("hello", 5).valid).toBe(true);
+  });
+
+  it("returns issues for invalid comments", () => {
+    const short = isValidComment("short");
+    expect(short.valid).toBe(false);
+    expect(short.issues.some((i) => i.code === "too_short")).toBe(true);
+
+    const allCaps = isValidComment("WORST PROF EVER");
+    expect(allCaps.valid).toBe(false);
+    expect(allCaps.issues.some((i) => i.code === "all_caps")).toBe(true);
+
+    const noAlpha = isValidComment("12345", 5);
+    expect(noAlpha.valid).toBe(false);
+    expect(noAlpha.issues.some((i) => i.code === "no_alpha")).toBe(true);
   });
 });
 
