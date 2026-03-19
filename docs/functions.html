@@ -8,7 +8,7 @@
 </head>
 <body>
   <aside class="sidebar">
-    <h2>RMP Client</h2>
+    <div class="sidebar-brand"><span class="dot"></span>RMP Client</div>
     <nav>
       <ul>
         <li><a href="index.html">Home</a></li>
@@ -28,11 +28,8 @@
       return Promises (or async iterators). Always call <code>close()</code> when finished.
     </p>
 
-    <!-- ================================================================== -->
-    <h2>Schools</h2>
-    <!-- ================================================================== -->
+    <h2 id="schools">Schools <a href="#schools" class="anchor">#</a></h2>
 
-    <!-- searchSchools -->
     <h3>searchSchools</h3>
     <div class="method-sig">searchSchools(query: string, options?): Promise&lt;SchoolSearchResult&gt;</div>
     <p>Search schools by name. Returns a paginated list of matching schools.</p>
@@ -55,7 +52,6 @@ if (result.has_next_page) {
   });
 }</code></pre>
 
-    <!-- getSchool -->
     <h3>getSchool</h3>
     <div class="method-sig">getSchool(schoolId: string): Promise&lt;School&gt;</div>
     <p>Fetch a single school by its legacy numeric ID (from search results or an RMP URL). Includes category summary ratings when available.</p>
@@ -68,7 +64,6 @@ if (result.has_next_page) {
     <pre><code>const school = await client.getSchool("1466");
 console.log(school.name, school.reputation, school.safety);</code></pre>
 
-    <!-- getCompareSchools -->
     <h3>getCompareSchools</h3>
     <div class="method-sig">getCompareSchools(schoolId1: string, schoolId2: string): Promise&lt;CompareSchoolsResult&gt;</div>
     <p>Fetch two schools in parallel and return them as a pair.</p>
@@ -81,7 +76,6 @@ console.log(school.name, school.reputation, school.safety);</code></pre>
     <pre><code>const cmp = await client.getCompareSchools("1466", "1491");
 console.log(cmp.school_1.name, "vs", cmp.school_2.name);</code></pre>
 
-    <!-- getSchoolRatingsPage -->
     <h3>getSchoolRatingsPage</h3>
     <div class="method-sig">getSchoolRatingsPage(schoolId: string, options?): Promise&lt;SchoolRatingsPage&gt;</div>
     <p>
@@ -107,7 +101,6 @@ if (page.has_next_page) {
   });
 }</code></pre>
 
-    <!-- iterSchoolRatings -->
     <h3>iterSchoolRatings</h3>
     <div class="method-sig">iterSchoolRatings(schoolId: string, options?): AsyncGenerator&lt;SchoolRating&gt;</div>
     <p>Async iterator that yields every rating for a school. Handles pagination automatically.</p>
@@ -122,11 +115,8 @@ if (page.has_next_page) {
   console.log(rating.date, rating.comment, rating.overall);
 }</code></pre>
 
-    <!-- ================================================================== -->
-    <h2>Professors</h2>
-    <!-- ================================================================== -->
+    <h2 id="professors">Professors <a href="#professors" class="anchor">#</a></h2>
 
-    <!-- searchProfessors -->
     <h3>searchProfessors</h3>
     <div class="method-sig">searchProfessors(query: string, options?): Promise&lt;ProfessorSearchResult&gt;</div>
     <p>Search professors by name. Optionally restrict to a specific school.</p>
@@ -150,7 +140,6 @@ if (result.has_next_page) {
   });
 }</code></pre>
 
-    <!-- listProfessorsForSchool -->
     <h3>listProfessorsForSchool</h3>
     <div class="method-sig">listProfessorsForSchool(school_id: number, options?): Promise&lt;ProfessorSearchResult&gt;</div>
     <p>List professors at a specific school. A convenience wrapper around <code>searchProfessors</code> with the <code>school_id</code> filter.</p>
@@ -167,7 +156,6 @@ for (const prof of result.professors) {
   console.log(prof.name);
 }</code></pre>
 
-    <!-- iterProfessorsForSchool -->
     <h3>iterProfessorsForSchool</h3>
     <div class="method-sig">iterProfessorsForSchool(school_id: number, options?): AsyncGenerator&lt;Professor&gt;</div>
     <p>Async iterator that yields every professor at a school. Handles cursor pagination automatically.</p>
@@ -182,7 +170,6 @@ for (const prof of result.professors) {
   console.log(prof.name, prof.overall_rating);
 }</code></pre>
 
-    <!-- getProfessor -->
     <h3>getProfessor</h3>
     <div class="method-sig">getProfessor(professorId: string): Promise&lt;Professor&gt;</div>
     <p>Fetch a single professor by their legacy numeric ID.</p>
@@ -195,7 +182,6 @@ for (const prof of result.professors) {
     <pre><code>const prof = await client.getProfessor("2823076");
 console.log(prof.name, prof.department, prof.overall_rating);</code></pre>
 
-    <!-- getProfessorRatingsPage -->
     <h3>getProfessorRatingsPage</h3>
     <div class="method-sig">getProfessorRatingsPage(professorId: string, options?): Promise&lt;ProfessorRatingsPage&gt;</div>
     <p>
@@ -221,7 +207,6 @@ if (page.has_next_page) {
   });
 }</code></pre>
 
-    <!-- iterProfessorRatings -->
     <h3>iterProfessorRatings</h3>
     <div class="method-sig">iterProfessorRatings(professorId: string, options?): AsyncGenerator&lt;Rating&gt;</div>
     <p>Async iterator that yields every rating for a professor. Handles pagination automatically.</p>
@@ -239,11 +224,8 @@ if (page.has_next_page) {
   console.log(rating.date, rating.quality, rating.comment);
 }</code></pre>
 
-    <!-- ================================================================== -->
-    <h2>Low-level</h2>
-    <!-- ================================================================== -->
+    <h2 id="low-level">Low-level <a href="#low-level" class="anchor">#</a></h2>
 
-    <!-- rawQuery -->
     <h3>rawQuery</h3>
     <div class="method-sig">rawQuery(payload: Record&lt;string, unknown&gt;): Promise&lt;Record&lt;string, unknown&gt;&gt;</div>
     <p>Send a raw JSON / GraphQL payload to the RMP endpoint. Use this for custom queries when the high-level methods don't expose what you need.</p>
@@ -257,7 +239,6 @@ if (page.has_next_page) {
 });
 console.log(data);</code></pre>
 
-    <!-- close -->
     <h3>close</h3>
     <div class="method-sig">close(): Promise&lt;void&gt;</div>
     <p>Close the HTTP client (aborts in-flight requests) and clear all rating caches. Safe to call multiple times.</p>

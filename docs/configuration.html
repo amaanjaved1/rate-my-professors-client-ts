@@ -8,7 +8,7 @@
 </head>
 <body>
   <aside class="sidebar">
-    <h2>RMP Client</h2>
+    <div class="sidebar-brand"><span class="dot"></span>RMP Client</div>
     <nav>
       <ul>
         <li><a href="index.html">Home</a></li>
@@ -29,13 +29,13 @@
       If you don't pass config, the client uses sensible defaults.
     </p>
 
-    <h2>Default Usage</h2>
+    <h2 id="default-usage">Default Usage <a href="#default-usage" class="anchor">#</a></h2>
     <pre><code>import { RMPClient } from "ratemyprofessors-client";
 
 // Uses all defaults
 const client = new RMPClient();</code></pre>
 
-    <h2>Custom Configuration</h2>
+    <h2 id="custom-configuration">Custom Configuration <a href="#custom-configuration" class="anchor">#</a></h2>
     <pre><code>import { RMPClient, createConfig } from "ratemyprofessors-client";
 
 const client = new RMPClient(
@@ -46,11 +46,11 @@ const client = new RMPClient(
   })
 );</code></pre>
 
-    <h2>createConfig</h2>
+    <h2 id="create-config">createConfig <a href="#create-config" class="anchor">#</a></h2>
     <div class="method-sig">createConfig(overrides?: Partial&lt;RMPClientConfig&gt;): RMPClientConfig</div>
     <p>Builds a full config by merging your overrides onto the defaults. Only the fields you provide are overridden; everything else keeps its default.</p>
 
-    <h2>RMPClientConfig</h2>
+    <h2 id="rmp-client-config">RMPClientConfig <a href="#rmp-client-config" class="anchor">#</a></h2>
     <table>
       <tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
       <tr>
@@ -91,7 +91,7 @@ const client = new RMPClient(
       </tr>
     </table>
 
-    <h2>Rate Limiting</h2>
+    <h2 id="rate-limiting">Rate Limiting <a href="#rate-limiting" class="anchor">#</a></h2>
     <p>
       The client uses a <strong>token bucket</strong> algorithm. The bucket holds up to
       <code>rate_limit_per_minute</code> tokens and refills at a continuous rate
@@ -112,7 +112,7 @@ const client = new RMPClient(
   createConfig({ rate_limit_per_minute: 120 })
 );</code></pre>
 
-    <h2>Retries</h2>
+    <h2 id="retries">Retries <a href="#retries" class="anchor">#</a></h2>
     <p>
       Failed requests (5xx status codes or network errors) are retried up to <code>max_retries</code>
       times with exponential backoff. If all retries fail, a
@@ -123,7 +123,7 @@ const client = new RMPClient(
   createConfig({ max_retries: 5 })
 );</code></pre>
 
-    <h2>Timeouts</h2>
+    <h2 id="timeouts">Timeouts <a href="#timeouts" class="anchor">#</a></h2>
     <p>
       Each individual request has a timeout of <code>timeout_seconds</code>.
       If a request takes longer, it's aborted and counted as a failure (potentially retried).

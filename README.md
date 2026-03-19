@@ -4,7 +4,7 @@
 
 A typed, retrying, rate-limited **unofficial** client for [RateMyProfessors](https://www.ratemyprofessors.com).
 
-> **Disclaimer:** This library is unofficial and may break if RMP changes their internal API. Use responsibly and respect rate limits.
+> **Looking for a Python version?** Check out [RateMyProfessors API Client (Python)](https://pypi.org/project/ratemyprofessors-client).
 
 ## Requirements
 

@@ -8,7 +8,7 @@
 </head>
 <body>
   <aside class="sidebar">
-    <h2>RMP Client</h2>
+    <div class="sidebar-brand"><span class="dot"></span>RMP Client</div>
     <nav>
       <ul>
         <li><a href="index.html">Home</a></li>
@@ -38,7 +38,7 @@
   ConfigurationError,
 } from "ratemyprofessors-client";</code></pre>
 
-    <h2>Catching Errors</h2>
+    <h2 id="catching-errors">Catching Errors <a href="#catching-errors" class="anchor">#</a></h2>
     <p>Use <code>instanceof</code> to narrow the error type and access type-specific properties:</p>
     <pre><code>try {
   const prof = await client.getProfessor(id);
@@ -63,8 +63,7 @@
   }
 }</code></pre>
 
-    <!-- RMPError -->
-    <h2 id="RMPError">RMPError</h2>
+    <h2 id="RMPError">RMPError <a href="#RMPError" class="anchor">#</a></h2>
     <p>Base class for all client errors. You can catch this to handle any client-specific error generically.</p>
     <table>
       <tr><th>Property</th><th>Type</th><th>Description</th></tr>
@@ -72,8 +71,7 @@
       <tr><td><code>name</code></td><td><code>"RMPError"</code></td><td>Error name</td></tr>
     </table>
 
-    <!-- HttpError -->
-    <h2 id="HttpError">HttpError</h2>
+    <h2 id="HttpError">HttpError <a href="#HttpError" class="anchor">#</a></h2>
     <p>Thrown when the server returns a non-2xx HTTP status code (e.g. 404, 500).</p>
     <table>
       <tr><th>Property</th><th>Type</th><th>Description</th></tr>
@@ -83,8 +81,7 @@
     </table>
     <p><strong>When thrown:</strong> Any time a network request returns a non-2xx response.</p>
 
-    <!-- ParsingError -->
-    <h2 id="ParsingError">ParsingError</h2>
+    <h2 id="ParsingError">ParsingError <a href="#ParsingError" class="anchor">#</a></h2>
     <p>Thrown when the response can't be parsed into the expected shape, or when the requested entity doesn't exist.</p>
     <table>
       <tr><th>Property</th><th>Type</th><th>Description</th></tr>
@@ -97,8 +94,7 @@
       <li>Ratings page fetches when the GraphQL response is missing <code>data.node</code></li>
     </ul>
 
-    <!-- RateLimitError -->
-    <h2 id="RateLimitError">RateLimitError</h2>
+    <h2 id="RateLimitError">RateLimitError <a href="#RateLimitError" class="anchor">#</a></h2>
     <p>Thrown when the client's local token-bucket rate limiter blocks a request. By default the client waits for a token to become available; this error is thrown when using non-blocking mode.</p>
     <table>
       <tr><th>Property</th><th>Type</th><th>Description</th></tr>
@@ -106,8 +102,7 @@
     </table>
     <p><strong>When thrown:</strong> When the configured <code>rate_limit_per_minute</code> would be exceeded.</p>
 
-    <!-- RetryError -->
-    <h2 id="RetryError">RetryError</h2>
+    <h2 id="RetryError">RetryError <a href="#RetryError" class="anchor">#</a></h2>
     <p>Thrown when all retry attempts are exhausted (e.g. repeated 5xx responses or network failures).</p>
     <table>
       <tr><th>Property</th><th>Type</th><th>Description</th></tr>
@@ -115,8 +110,7 @@
     </table>
     <p><strong>When thrown:</strong> After <code>max_retries</code> failed attempts on any request.</p>
 
-    <!-- RMPAPIError -->
-    <h2 id="RMPAPIError">RMPAPIError</h2>
+    <h2 id="RMPAPIError">RMPAPIError <a href="#RMPAPIError" class="anchor">#</a></h2>
     <p>Thrown when the RMP GraphQL API returns an <code>errors</code> array in the response body (the HTTP status may still be 200).</p>
     <table>
       <tr><th>Property</th><th>Type</th><th>Description</th></tr>
@@ -125,8 +119,7 @@
     </table>
     <p><strong>When thrown:</strong> When the GraphQL response includes <code>"errors": [...]</code>.</p>
 
-    <!-- ConfigurationError -->
-    <h2 id="ConfigurationError">ConfigurationError</h2>
+    <h2 id="ConfigurationError">ConfigurationError <a href="#ConfigurationError" class="anchor">#</a></h2>
     <p>Thrown when client configuration is invalid.</p>
     <table>
       <tr><th>Property</th><th>Type</th><th>Description</th></tr>

@@ -8,7 +8,7 @@
 </head>
 <body>
   <aside class="sidebar">
-    <h2>RMP Client</h2>
+    <div class="sidebar-brand"><span class="dot"></span>RMP Client</div>
     <nav>
       <ul>
         <li><a href="index.html" class="active">Home</a></li>
@@ -35,16 +35,16 @@
       internal API. Use responsibly and respect rate limits.
     </div>
 
-    <h2>Requirements</h2>
+    <h2 id="requirements">Requirements <a href="#requirements" class="anchor">#</a></h2>
     <ul>
       <li><strong>Node.js 18</strong> or later</li>
       <li>Works in both TypeScript and JavaScript projects &mdash; types are included.</li>
     </ul>
 
-    <h2>Installation</h2>
+    <h2 id="installation">Installation <a href="#installation" class="anchor">#</a></h2>
     <pre><code>npm install ratemyprofessors-client</code></pre>
 
-    <h2>Quick Start</h2>
+    <h2 id="quick-start">Quick Start <a href="#quick-start" class="anchor">#</a></h2>
     <p>Create a client and start querying:</p>
     <pre><code>import { RMPClient } from "ratemyprofessors-client";
 
@@ -67,7 +67,7 @@ try {
   await client.close();
 }</code></pre>
 
-    <h2>Available Functions</h2>
+    <h2 id="functions">Available Functions <a href="#functions" class="anchor">#</a></h2>
     <p>All methods are <code>async</code>. See the <a href="functions.html">full reference</a> for parameters, return types, and examples.</p>
 
     <h3>Schools</h3>
@@ -95,7 +95,7 @@ try {
       <li><code>close()</code> &mdash; Close the client, abort in-flight requests, and clear caches.</li>
     </ul>
 
-    <h2>Errors</h2>
+    <h2 id="errors">Errors <a href="#errors" class="anchor">#</a></h2>
     <p>All errors extend <code>RMPError</code>. Catch and narrow with <code>instanceof</code>. See <a href="errors.html">the full error reference</a>.</p>
     <ul>
       <li><code>HttpError</code> &mdash; Non-2xx HTTP status (e.g. 404, 500).</li>
@@ -106,7 +106,7 @@ try {
       <li><code>ConfigurationError</code> &mdash; Invalid client configuration.</li>
     </ul>
 
-    <h2>Types</h2>
+    <h2 id="types">Types <a href="#types" class="anchor">#</a></h2>
     <p>All methods return typed data. See <a href="types.html">the full type reference</a>.</p>
     <pre><code>import type {
   School,
@@ -120,7 +120,7 @@ try {
   CompareSchoolsResult,
 } from "ratemyprofessors-client";</code></pre>
 
-    <h2>Extras</h2>
+    <h2 id="extras">Extras <a href="#extras" class="anchor">#</a></h2>
     <p>Optional helpers for data pipelines. See <a href="extras.html">the extras reference</a>.</p>
     <pre><code>import {
   normalizeComment,

@@ -8,7 +8,7 @@
 </head>
 <body>
   <aside class="sidebar">
-    <h2>RMP Client</h2>
+    <div class="sidebar-brand"><span class="dot"></span>RMP Client</div>
     <nav>
       <ul>
         <li><a href="index.html">Home</a></li>
@@ -35,8 +35,7 @@
   analyzeSentiment,
 } from "ratemyprofessors-client/extras";</code></pre>
 
-    <!-- Deduplication -->
-    <h2>Deduplication</h2>
+    <h2 id="deduplication">Deduplication <a href="#deduplication" class="anchor">#</a></h2>
 
     <h3>normalizeComment</h3>
     <div class="method-sig">normalizeComment(text: string): string</div>
@@ -62,8 +61,7 @@ console.log(a === b); // true</code></pre>
     <pre><code>isValidComment("Good");       // false (too short)
 isValidComment("Great class, learned a lot"); // true</code></pre>
 
-    <!-- Course Codes -->
-    <h2>Course Codes</h2>
+    <h2 id="course-codes">Course Codes <a href="#course-codes" class="anchor">#</a></h2>
 
     <h3>cleanCourseLabel</h3>
     <div class="method-sig">cleanCourseLabel(raw: string): string</div>
@@ -90,8 +88,7 @@ isValidComment("Great class, learned a lot"); // true</code></pre>
 );
 // Map { "CS 101" => Set { "CS101" }, "MATH200" => Set { "MATH200" } }</code></pre>
 
-    <!-- Sentiment -->
-    <h2>Sentiment</h2>
+    <h2 id="sentiment">Sentiment <a href="#sentiment" class="anchor">#</a></h2>
 
     <h3>analyzeSentiment</h3>
     <div class="method-sig">analyzeSentiment(text: string, getPolarity: (text: string) =&gt; number): SentimentResult</div>
