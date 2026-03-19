@@ -35,7 +35,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/amaanjaved1/rate-my-professors-client-ts"
+    "url": "git+https://github.com/amaanjaved1/rate-my-professors-client-ts.git"
   },
   "engines": {
     "node": ">=18"
