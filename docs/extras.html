@@ -5,111 +5,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Extras &mdash; RMP Client</title>
   <link rel="stylesheet" href="style.css" />
+  <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+  <script>
+    (function(){var t=localStorage.getItem('rmp-docs-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark')})();
+  </script>
 </head>
 <body>
+  <header class="topbar">
+    <div class="topbar-right">
+      <a href="https://github.com/amaanjaved1/rate-my-professors-client-ts" class="topbar-btn" target="_blank" rel="noopener" aria-label="GitHub">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      </a>
+      <button class="topbar-btn" id="theme-toggle" aria-label="Toggle theme"></button>
+    </div>
+  </header>
+
   <aside class="sidebar">
-    <div class="sidebar-brand"><span class="dot"></span>RMP Client</div>
-    <nav>
-      <ul>
-        <li><a href="index.html">Home</a></li>
-        <li><a href="functions.html">Functions</a></li>
-        <li><a href="types.html">Types</a></li>
-        <li><a href="errors.html">Errors</a></li>
-        <li><a href="configuration.html">Configuration</a></li>
-        <li><a href="extras.html" class="active">Extras</a></li>
-      </ul>
-    </nav>
+    <div class="sidebar-brand">RMP API Docs</div>
+    <nav><ul>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="functions.html">Functions</a></li>
+      <li><a href="types.html">Types</a></li>
+      <li><a href="errors.html">Errors</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+      <li><a href="extras.html" class="active">Extras</a></li>
+    </ul></nav>
   </aside>
 
   <main class="content">
     <h1>Extras</h1>
-    <p>
-      Optional helpers for data pipelines &mdash; deduplication, course code normalization, and
-      sentiment analysis. Import from the <code>extras</code> subpath:
-    </p>
-    <pre><code>import {
-  normalizeComment,
-  isValidComment,
-  cleanCourseLabel,
-  buildCourseMapping,
-  analyzeSentiment,
-} from "ratemyprofessors-client/extras";</code></pre>
+    <p>Optional helpers for data pipelines &mdash; deduplication, course code normalization, and sentiment analysis.</p>
+    <pre><code class="language-typescript">import { normalizeComment, isValidComment, cleanCourseLabel, buildCourseMapping, analyzeSentiment } from "ratemyprofessors-client/extras";</code></pre>
 
     <h2 id="deduplication">Deduplication <a href="#deduplication" class="anchor">#</a></h2>
 
-    <h3>normalizeComment</h3>
+    <h3 id="normalizeComment">normalizeComment</h3>
     <div class="method-sig">normalizeComment(text: string): string</div>
-    <p>
-      Normalizes text for comparison by trimming, lowercasing, and collapsing whitespace.
-      Useful for detecting duplicate reviews.
-    </p>
-    <pre><code>const a = normalizeComment("  Great  Professor!  ");
+    <p>Normalizes text for comparison by trimming, lowercasing, and collapsing whitespace.</p>
+    <pre><code class="language-typescript">const a = normalizeComment("  Great  Professor!  ");
 const b = normalizeComment("great professor!");
 console.log(a === b); // true</code></pre>
 
-    <h3>isValidComment</h3>
+    <h3 id="isValidComment">isValidComment</h3>
     <div class="method-sig">isValidComment(text: string, minLen?: number): boolean</div>
-    <p>
-      Returns whether a comment is non-empty and at least <code>minLen</code> characters long (default 10).
-      Use to filter out low-quality or blank reviews.
-    </p>
-    <table>
-      <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
-      <tr><td><code>text</code></td><td><code>string</code></td><td>&mdash;</td><td>Comment text</td></tr>
-      <tr><td><code>minLen</code></td><td><code>number</code></td><td><code>10</code></td><td>Minimum character length</td></tr>
-    </table>
-    <pre><code>isValidComment("Good");       // false (too short)
+    <p>Returns whether a comment is non-empty and at least <code>minLen</code> characters long (default 10).</p>
+    <table><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr><tr><td><code>text</code></td><td><code>string</code></td><td>&mdash;</td><td>Comment text</td></tr><tr><td><code>minLen</code></td><td><code>number</code></td><td><code>10</code></td><td>Minimum character length</td></tr></table>
+    <pre><code class="language-typescript">isValidComment("Good");       // false (too short)
 isValidComment("Great class, learned a lot"); // true</code></pre>
 
     <h2 id="course-codes">Course Codes <a href="#course-codes" class="anchor">#</a></h2>
 
-    <h3>cleanCourseLabel</h3>
+    <h3 id="cleanCourseLabel">cleanCourseLabel</h3>
     <div class="method-sig">cleanCourseLabel(raw: string): string</div>
-    <p>
-      Cleans a scraped course label by removing parenthesized counts and normalizing whitespace.
-    </p>
-    <pre><code>cleanCourseLabel("CS 101 (42)"); // "CS 101"</code></pre>
+    <p>Cleans a scraped course label by removing parenthesized counts and normalizing whitespace.</p>
+    <pre><code class="language-typescript">cleanCourseLabel("CS 101 (42)"); // "CS 101"</code></pre>
 
-    <h3>buildCourseMapping</h3>
+    <h3 id="buildCourseMapping">buildCourseMapping</h3>
     <div class="method-sig">buildCourseMapping(scrapedLabels: Iterable&lt;string&gt;, validCourses: Iterable&lt;string&gt;): Map&lt;string, Set&lt;string&gt; | null&gt;</div>
-    <p>
-      Maps scraped course labels to valid course codes. Returns a <code>Map</code> where each key
-      is a cleaned label and the value is either a <code>Set</code> of matching course codes
-      or <code>null</code> when the label is ambiguous or unknown.
-    </p>
-    <table>
-      <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
-      <tr><td><code>scrapedLabels</code></td><td><code>Iterable&lt;string&gt;</code></td><td>Labels scraped from RMP (e.g. from rating <code>course_raw</code>)</td></tr>
-      <tr><td><code>validCourses</code></td><td><code>Iterable&lt;string&gt;</code></td><td>Known valid course codes from your institution</td></tr>
-    </table>
-    <pre><code>const mapping = buildCourseMapping(
-  ["CS 101 (42)", "MATH200"],
-  ["CS101", "CS102", "MATH200"]
-);
-// Map { "CS 101" => Set { "CS101" }, "MATH200" => Set { "MATH200" } }</code></pre>
+    <p>Maps scraped course labels to valid course codes.</p>
+    <table><tr><th>Parameter</th><th>Type</th><th>Description</th></tr><tr><td><code>scrapedLabels</code></td><td><code>Iterable&lt;string&gt;</code></td><td>Labels scraped from RMP</td></tr><tr><td><code>validCourses</code></td><td><code>Iterable&lt;string&gt;</code></td><td>Known valid course codes</td></tr></table>
+    <pre><code class="language-typescript">const mapping = buildCourseMapping(["CS 101 (42)", "MATH200"], ["CS101", "CS102", "MATH200"]);</code></pre>
 
     <h2 id="sentiment">Sentiment <a href="#sentiment" class="anchor">#</a></h2>
 
-    <h3>analyzeSentiment</h3>
+    <h3 id="analyzeSentiment">analyzeSentiment</h3>
     <div class="method-sig">analyzeSentiment(text: string, getPolarity: (text: string) =&gt; number): SentimentResult</div>
-    <p>
-      Computes a sentiment label from a polarity score. You provide a polarity function
-      (e.g. from a sentiment library) that returns a number in [-1, 1].
-    </p>
-    <table>
-      <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
-      <tr><td><code>text</code></td><td><code>string</code></td><td>The text to analyze</td></tr>
-      <tr><td><code>getPolarity</code></td><td><code>(text: string) =&gt; number</code></td><td>Function returning polarity in [-1, 1]</td></tr>
-    </table>
-    <p><strong>Returns:</strong> <code>SentimentResult</code></p>
-    <table>
-      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
-      <tr><td><code>score</code></td><td><code>number</code></td><td>Raw polarity score</td></tr>
-      <tr><td><code>label</code></td><td><code>SentimentLabel</code></td><td>One of: <code>"very positive"</code>, <code>"positive"</code>, <code>"neutral"</code>, <code>"negative"</code>, <code>"very negative"</code></td></tr>
-    </table>
-    <pre><code>const result = analyzeSentiment("Amazing professor!", myPolarityFn);
-console.log(result.label); // "very positive"
-console.log(result.score); // 0.85</code></pre>
+    <p>Computes a sentiment label from a polarity score.</p>
+    <table><tr><th>Parameter</th><th>Type</th><th>Description</th></tr><tr><td><code>text</code></td><td><code>string</code></td><td>The text to analyze</td></tr><tr><td><code>getPolarity</code></td><td><code>(text: string) =&gt; number</code></td><td>Function returning polarity in [-1, 1]</td></tr></table>
+    <p><strong>Returns:</strong> <code>SentimentResult</code> with <code>score</code> (number) and <code>label</code> (string).</p>
+    <pre><code class="language-typescript">const result = analyzeSentiment("Amazing professor!", myPolarityFn);
+console.log(result.label); // "very positive"</code></pre>
   </main>
+
+  <aside class="toc"><div class="toc-title">On this page</div><ul id="toc-list"></ul></aside>
+  <script src="script.js"></script>
 </body>
 </html>

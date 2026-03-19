@@ -22,29 +22,31 @@
   --border-subtle: #f1f5f9;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
-  --sidebar-width: 260px;
+  --topbar-height: 52px;
+  --sidebar-width: 240px;
+  --toc-width: 200px;
   --radius: 8px;
   --radius-sm: 6px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary: #34d399;
-    --primary-hover: #6ee7b7;
-    --primary-subtle: #064e3b;
-    --bg: #0f172a;
-    --bg-surface: #1e293b;
-    --bg-code: #0c0c16;
-    --text: #e2e8f0;
-    --text-secondary: #94a3b8;
-    --text-code: #d4d4d8;
-    --border: #334155;
-    --border-subtle: #1e293b;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-  }
+html.dark {
+  --primary: #34d399;
+  --primary-hover: #6ee7b7;
+  --primary-subtle: rgba(16, 185, 129, 0.1);
+  --bg: #0a0a0a;
+  --bg-surface: #141414;
+  --bg-code: #161616;
+  --text: #e5e5e5;
+  --text-secondary: #a0a0a0;
+  --text-code: #d4d4d8;
+  --border: #262626;
+  --border-subtle: #1a1a1a;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
 }
 
 html {
@@ -59,8 +61,6 @@ body {
   color: var(--text);
   background: var(--bg);
   line-height: 1.7;
-  display: flex;
-  min-height: 100vh;
 }
 
 a {
@@ -79,42 +79,84 @@ a:hover {
 }
 
 /* ------------------------------------------------------------------ */
+/* Top Bar                                                            */
+/* ------------------------------------------------------------------ */
+
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-height);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 1.25rem;
+  z-index: 100;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.topbar-btn:hover {
+  color: var(--text);
+  border-color: var(--primary);
+  text-decoration: none;
+}
+
+.topbar-btn svg {
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Sidebar                                                            */
 /* ------------------------------------------------------------------ */
 
 .sidebar {
   width: var(--sidebar-width);
-  min-height: 100vh;
+  position: fixed;
+  top: var(--topbar-height);
+  left: 0;
+  bottom: 0;
   background: var(--bg-surface);
   border-right: 1px solid var(--border);
-  padding: 2rem 1.25rem;
-  position: fixed;
-  top: 0;
-  left: 0;
+  padding: 1.5rem 1rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
-  z-index: 10;
+  gap: 1.5rem;
+  z-index: 50;
 }
 
 .sidebar-brand {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: -0.01em;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  letter-spacing: -0.02em;
   padding: 0 0.5rem;
-}
-
-.sidebar-brand .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--primary);
-  flex-shrink: 0;
 }
 
 .sidebar nav ul {
@@ -126,7 +168,7 @@ a:hover {
 
 .sidebar nav a {
   display: block;
-  padding: 0.45rem 0.75rem;
+  padding: 0.4rem 0.75rem;
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   font-weight: 500;
@@ -147,14 +189,63 @@ a:hover {
 }
 
 /* ------------------------------------------------------------------ */
+/* Table of Contents (right sidebar)                                  */
+/* ------------------------------------------------------------------ */
+
+.toc {
+  width: var(--toc-width);
+  position: fixed;
+  top: var(--topbar-height);
+  right: 0;
+  bottom: 0;
+  padding: 1.5rem 1rem 1.5rem 0;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.toc-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  padding: 0 0 0.6rem 0.75rem;
+}
+
+.toc ul {
+  list-style: none;
+  border-left: 1px solid var(--border);
+}
+
+.toc a {
+  display: block;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  border-left: 2px solid transparent;
+  margin-left: -1px;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.toc a:hover {
+  color: var(--text);
+}
+
+.toc a.active {
+  color: var(--primary);
+  border-left-color: var(--primary);
+}
+
+/* ------------------------------------------------------------------ */
 /* Main content                                                       */
 /* ------------------------------------------------------------------ */
 
 .content {
   margin-left: var(--sidebar-width);
-  flex: 1;
+  margin-right: var(--toc-width);
   max-width: 54rem;
-  padding: 3rem 3.5rem 4rem;
+  padding: calc(var(--topbar-height) + 2.5rem) 3rem 4rem;
 }
 
 /* ------------------------------------------------------------------ */
@@ -184,7 +275,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  scroll-margin-top: 2rem;
+  scroll-margin-top: calc(var(--topbar-height) + 1.5rem);
 }
 
 h2 .anchor {
@@ -207,7 +298,7 @@ h3 {
   margin-top: 2rem;
   margin-bottom: 0.5rem;
   letter-spacing: -0.01em;
-  scroll-margin-top: 2rem;
+  scroll-margin-top: calc(var(--topbar-height) + 1.5rem);
 }
 
 p {
@@ -254,12 +345,17 @@ code {
 
 pre {
   background: var(--bg-code);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.25rem 1.5rem;
   overflow-x: auto;
   margin-bottom: 1.25rem;
   box-shadow: var(--shadow-md);
   line-height: 1.6;
+}
+
+html.dark pre {
+  border-color: #2a2a2a;
 }
 
 pre code {
@@ -269,6 +365,57 @@ pre code {
   font-size: 0.84rem;
   color: var(--text-code);
   font-weight: 400;
+}
+
+/* Styled scrollbar for code blocks */
+pre::-webkit-scrollbar {
+  height: 6px;
+}
+
+pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+pre::-webkit-scrollbar-thumb {
+  background: #4a4a5a;
+  border-radius: 3px;
+}
+
+pre::-webkit-scrollbar-thumb:hover {
+  background: #5a5a6a;
+}
+
+.method-sig::-webkit-scrollbar {
+  height: 6px;
+}
+
+.method-sig::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.method-sig::-webkit-scrollbar-thumb {
+  background: #4a4a5a;
+  border-radius: 3px;
+}
+
+/* Firefox scrollbar */
+pre,
+.method-sig {
+  scrollbar-width: thin;
+  scrollbar-color: #4a4a5a transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Highlight.js overrides                                             */
+/* ------------------------------------------------------------------ */
+
+pre code.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.hljs {
+  background: transparent !important;
 }
 
 /* ------------------------------------------------------------------ */
@@ -336,6 +483,7 @@ tr:hover td {
   background: var(--bg-code);
   color: var(--text-code);
   padding: 0.7rem 1.1rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 0.84rem;
@@ -344,19 +492,51 @@ tr:hover td {
   box-shadow: var(--shadow-sm);
 }
 
+html.dark .method-sig {
+  border-color: #2a2a2a;
+}
+
+/* ------------------------------------------------------------------ */
+/* Badges                                                             */
+/* ------------------------------------------------------------------ */
+
+.badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.badges img {
+  height: 22px;
+}
+
 /* ------------------------------------------------------------------ */
 /* Responsive                                                         */
 /* ------------------------------------------------------------------ */
 
+@media (max-width: 1100px) {
+  .toc {
+    display: none;
+  }
+
+  .content {
+    margin-right: 0;
+  }
+}
+
 @media (max-width: 860px) {
+  .topbar {
+    padding-left: 1.25rem;
+  }
+
   .sidebar {
     position: static;
     width: 100%;
-    min-height: auto;
     border-right: none;
     border-bottom: 1px solid var(--border);
-    padding: 1.25rem 1rem;
-    gap: 1rem;
+    padding: 1rem;
+    gap: 0.75rem;
   }
 
   .sidebar nav ul {
@@ -367,7 +547,7 @@ tr:hover td {
 
   .content {
     margin-left: 0;
-    padding: 2rem 1.25rem;
+    padding: calc(var(--topbar-height) + 1.5rem) 1.25rem 3rem;
   }
 }
 
@@ -381,7 +561,8 @@ tr:hover td {
   }
 
   .content {
-    padding: 1.5rem 1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 
   pre {
