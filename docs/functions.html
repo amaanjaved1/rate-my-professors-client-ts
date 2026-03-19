@@ -5,10 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Functions &mdash; RMP Client</title>
   <link rel="stylesheet" href="style.css" />
+  <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+  <script>
+    (function(){var t=localStorage.getItem('rmp-docs-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark')})();
+  </script>
 </head>
 <body>
+  <header class="topbar">
+    <div class="topbar-right">
+      <a href="https://github.com/amaanjaved1/rate-my-professors-client-ts" class="topbar-btn" target="_blank" rel="noopener" aria-label="GitHub">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      </a>
+      <button class="topbar-btn" id="theme-toggle" aria-label="Toggle theme"></button>
+    </div>
+  </header>
+
   <aside class="sidebar">
-    <h2>RMP Client</h2>
+    <div class="sidebar-brand">RMP API Docs</div>
     <nav>
       <ul>
         <li><a href="index.html">Home</a></li>
@@ -28,12 +42,9 @@
       return Promises (or async iterators). Always call <code>close()</code> when finished.
     </p>
 
-    <!-- ================================================================== -->
-    <h2>Schools</h2>
-    <!-- ================================================================== -->
+    <h2 id="schools">Schools <a href="#schools" class="anchor">#</a></h2>
 
-    <!-- searchSchools -->
-    <h3>searchSchools</h3>
+    <h3 id="searchSchools">searchSchools</h3>
     <div class="method-sig">searchSchools(query: string, options?): Promise&lt;SchoolSearchResult&gt;</div>
     <p>Search schools by name. Returns a paginated list of matching schools.</p>
     <table>
@@ -43,33 +54,27 @@
       <tr><td><code>options.cursor</code></td><td><code>string | null</code></td><td><code>null</code></td><td>Cursor from a previous result's <code>next_cursor</code></td></tr>
     </table>
     <p><strong>Returns:</strong> <a href="types.html#SchoolSearchResult"><code>SchoolSearchResult</code></a></p>
-    <pre><code>const result = await client.searchSchools("Stanford");
+    <pre><code class="language-typescript">const result = await client.searchSchools("Stanford");
 for (const school of result.schools) {
   console.log(school.name, school.overall_quality);
 }
-
-// Load more
 if (result.has_next_page) {
-  const page2 = await client.searchSchools("Stanford", {
-    cursor: result.next_cursor,
-  });
+  const page2 = await client.searchSchools("Stanford", { cursor: result.next_cursor });
 }</code></pre>
 
-    <!-- getSchool -->
-    <h3>getSchool</h3>
+    <h3 id="getSchool">getSchool</h3>
     <div class="method-sig">getSchool(schoolId: string): Promise&lt;School&gt;</div>
-    <p>Fetch a single school by its legacy numeric ID (from search results or an RMP URL). Includes category summary ratings when available.</p>
+    <p>Fetch a single school by its legacy numeric ID. Includes category summary ratings when available.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
       <tr><td><code>schoolId</code></td><td><code>string</code></td><td>Legacy numeric school ID</td></tr>
     </table>
     <p><strong>Returns:</strong> <a href="types.html#School"><code>School</code></a></p>
     <p><strong>Throws:</strong> <a href="errors.html#ParsingError"><code>ParsingError</code></a> if the school is not found.</p>
-    <pre><code>const school = await client.getSchool("1466");
+    <pre><code class="language-typescript">const school = await client.getSchool("1466");
 console.log(school.name, school.reputation, school.safety);</code></pre>
 
-    <!-- getCompareSchools -->
-    <h3>getCompareSchools</h3>
+    <h3 id="getCompareSchools">getCompareSchools</h3>
     <div class="method-sig">getCompareSchools(schoolId1: string, schoolId2: string): Promise&lt;CompareSchoolsResult&gt;</div>
     <p>Fetch two schools in parallel and return them as a pair.</p>
     <table>
@@ -78,17 +83,12 @@ console.log(school.name, school.reputation, school.safety);</code></pre>
       <tr><td><code>schoolId2</code></td><td><code>string</code></td><td>Second school's ID</td></tr>
     </table>
     <p><strong>Returns:</strong> <a href="types.html#CompareSchoolsResult"><code>CompareSchoolsResult</code></a></p>
-    <pre><code>const cmp = await client.getCompareSchools("1466", "1491");
+    <pre><code class="language-typescript">const cmp = await client.getCompareSchools("1466", "1491");
 console.log(cmp.school_1.name, "vs", cmp.school_2.name);</code></pre>
 
-    <!-- getSchoolRatingsPage -->
-    <h3>getSchoolRatingsPage</h3>
+    <h3 id="getSchoolRatingsPage">getSchoolRatingsPage</h3>
     <div class="method-sig">getSchoolRatingsPage(schoolId: string, options?): Promise&lt;SchoolRatingsPage&gt;</div>
-    <p>
-      Fetch one page of ratings for a school. On the first call all ratings are pre-fetched via
-      GraphQL and cached in memory, so subsequent "Show More" calls with a cursor are served
-      instantly with no extra network requests.
-    </p>
+    <p>Fetch one page of ratings for a school. All ratings are pre-fetched and cached on first call.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
       <tr><td><code>schoolId</code></td><td><code>string</code></td><td>&mdash;</td><td>Legacy numeric school ID</td></tr>
@@ -96,19 +96,10 @@ console.log(cmp.school_1.name, "vs", cmp.school_2.name);</code></pre>
       <tr><td><code>options.cursor</code></td><td><code>string | null</code></td><td><code>null</code></td><td>Cursor from previous page's <code>next_cursor</code></td></tr>
     </table>
     <p><strong>Returns:</strong> <a href="types.html#SchoolRatingsPage"><code>SchoolRatingsPage</code></a></p>
-    <pre><code>const page = await client.getSchoolRatingsPage("1466", { page_size: 5 });
-console.log(page.school.name, page.ratings.length);
+    <pre><code class="language-typescript">const page = await client.getSchoolRatingsPage("1466", { page_size: 5 });
+console.log(page.school.name, page.ratings.length);</code></pre>
 
-// Show More (served from cache)
-if (page.has_next_page) {
-  const page2 = await client.getSchoolRatingsPage("1466", {
-    cursor: page.next_cursor,
-    page_size: 5,
-  });
-}</code></pre>
-
-    <!-- iterSchoolRatings -->
-    <h3>iterSchoolRatings</h3>
+    <h3 id="iterSchoolRatings">iterSchoolRatings</h3>
     <div class="method-sig">iterSchoolRatings(schoolId: string, options?): AsyncGenerator&lt;SchoolRating&gt;</div>
     <p>Async iterator that yields every rating for a school. Handles pagination automatically.</p>
     <table>
@@ -118,16 +109,13 @@ if (page.has_next_page) {
       <tr><td><code>options.since</code></td><td><code>Date | null</code></td><td><code>null</code></td><td>Stop when a rating is older than this date</td></tr>
     </table>
     <p><strong>Yields:</strong> <a href="types.html#SchoolRating"><code>SchoolRating</code></a></p>
-    <pre><code>for await (const rating of client.iterSchoolRatings("1466")) {
+    <pre><code class="language-typescript">for await (const rating of client.iterSchoolRatings("1466")) {
   console.log(rating.date, rating.comment, rating.overall);
 }</code></pre>
 
-    <!-- ================================================================== -->
-    <h2>Professors</h2>
-    <!-- ================================================================== -->
+    <h2 id="professors">Professors <a href="#professors" class="anchor">#</a></h2>
 
-    <!-- searchProfessors -->
-    <h3>searchProfessors</h3>
+    <h3 id="searchProfessors">searchProfessors</h3>
     <div class="method-sig">searchProfessors(query: string, options?): Promise&lt;ProfessorSearchResult&gt;</div>
     <p>Search professors by name. Optionally restrict to a specific school.</p>
     <table>
@@ -138,22 +126,14 @@ if (page.has_next_page) {
       <tr><td><code>options.cursor</code></td><td><code>string | null</code></td><td><code>null</code></td><td>Cursor from a previous result</td></tr>
     </table>
     <p><strong>Returns:</strong> <a href="types.html#ProfessorSearchResult"><code>ProfessorSearchResult</code></a></p>
-    <pre><code>const result = await client.searchProfessors("Smith");
+    <pre><code class="language-typescript">const result = await client.searchProfessors("Smith");
 for (const prof of result.professors) {
   console.log(prof.name, prof.department, prof.overall_rating);
-}
-
-// Pagination
-if (result.has_next_page) {
-  const page2 = await client.searchProfessors("Smith", {
-    cursor: result.next_cursor,
-  });
 }</code></pre>
 
-    <!-- listProfessorsForSchool -->
-    <h3>listProfessorsForSchool</h3>
+    <h3 id="listProfessorsForSchool">listProfessorsForSchool</h3>
     <div class="method-sig">listProfessorsForSchool(school_id: number, options?): Promise&lt;ProfessorSearchResult&gt;</div>
-    <p>List professors at a specific school. A convenience wrapper around <code>searchProfessors</code> with the <code>school_id</code> filter.</p>
+    <p>List professors at a specific school.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
       <tr><td><code>school_id</code></td><td><code>number</code></td><td>&mdash;</td><td>Legacy numeric school ID</td></tr>
@@ -162,15 +142,14 @@ if (result.has_next_page) {
       <tr><td><code>options.cursor</code></td><td><code>string | null</code></td><td><code>null</code></td><td>Cursor from a previous result</td></tr>
     </table>
     <p><strong>Returns:</strong> <a href="types.html#ProfessorSearchResult"><code>ProfessorSearchResult</code></a></p>
-    <pre><code>const result = await client.listProfessorsForSchool(1466, { page_size: 10 });
+    <pre><code class="language-typescript">const result = await client.listProfessorsForSchool(1466, { page_size: 10 });
 for (const prof of result.professors) {
   console.log(prof.name);
 }</code></pre>
 
-    <!-- iterProfessorsForSchool -->
-    <h3>iterProfessorsForSchool</h3>
+    <h3 id="iterProfessorsForSchool">iterProfessorsForSchool</h3>
     <div class="method-sig">iterProfessorsForSchool(school_id: number, options?): AsyncGenerator&lt;Professor&gt;</div>
-    <p>Async iterator that yields every professor at a school. Handles cursor pagination automatically.</p>
+    <p>Async iterator that yields every professor at a school.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
       <tr><td><code>school_id</code></td><td><code>number</code></td><td>&mdash;</td><td>Legacy numeric school ID</td></tr>
@@ -178,12 +157,11 @@ for (const prof of result.professors) {
       <tr><td><code>options.page_size</code></td><td><code>number</code></td><td><code>20</code></td><td>Internal page size</td></tr>
     </table>
     <p><strong>Yields:</strong> <a href="types.html#Professor"><code>Professor</code></a></p>
-    <pre><code>for await (const prof of client.iterProfessorsForSchool(1466)) {
+    <pre><code class="language-typescript">for await (const prof of client.iterProfessorsForSchool(1466)) {
   console.log(prof.name, prof.overall_rating);
 }</code></pre>
 
-    <!-- getProfessor -->
-    <h3>getProfessor</h3>
+    <h3 id="getProfessor">getProfessor</h3>
     <div class="method-sig">getProfessor(professorId: string): Promise&lt;Professor&gt;</div>
     <p>Fetch a single professor by their legacy numeric ID.</p>
     <table>
@@ -192,16 +170,12 @@ for (const prof of result.professors) {
     </table>
     <p><strong>Returns:</strong> <a href="types.html#Professor"><code>Professor</code></a></p>
     <p><strong>Throws:</strong> <a href="errors.html#ParsingError"><code>ParsingError</code></a> if the professor is not found.</p>
-    <pre><code>const prof = await client.getProfessor("2823076");
+    <pre><code class="language-typescript">const prof = await client.getProfessor("2823076");
 console.log(prof.name, prof.department, prof.overall_rating);</code></pre>
 
-    <!-- getProfessorRatingsPage -->
-    <h3>getProfessorRatingsPage</h3>
+    <h3 id="getProfessorRatingsPage">getProfessorRatingsPage</h3>
     <div class="method-sig">getProfessorRatingsPage(professorId: string, options?): Promise&lt;ProfessorRatingsPage&gt;</div>
-    <p>
-      Fetch one page of ratings for a professor. On the first call all ratings are pre-fetched
-      and cached in memory, so subsequent "Load More" calls using the cursor are instant.
-    </p>
+    <p>Fetch one page of ratings for a professor. All ratings are pre-fetched and cached on first call.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
       <tr><td><code>professorId</code></td><td><code>string</code></td><td>&mdash;</td><td>Legacy numeric professor ID</td></tr>
@@ -210,21 +184,12 @@ console.log(prof.name, prof.department, prof.overall_rating);</code></pre>
       <tr><td><code>options.course_filter</code></td><td><code>string | null</code></td><td><code>null</code></td><td>Filter ratings by course</td></tr>
     </table>
     <p><strong>Returns:</strong> <a href="types.html#ProfessorRatingsPage"><code>ProfessorRatingsPage</code></a></p>
-    <pre><code>const page = await client.getProfessorRatingsPage("2823076", { page_size: 5 });
-console.log(page.professor.name, page.ratings.length);
+    <pre><code class="language-typescript">const page = await client.getProfessorRatingsPage("2823076", { page_size: 5 });
+console.log(page.professor.name, page.ratings.length);</code></pre>
 
-// Load More (served from cache)
-if (page.has_next_page) {
-  const page2 = await client.getProfessorRatingsPage("2823076", {
-    cursor: page.next_cursor,
-    page_size: 5,
-  });
-}</code></pre>
-
-    <!-- iterProfessorRatings -->
-    <h3>iterProfessorRatings</h3>
+    <h3 id="iterProfessorRatings">iterProfessorRatings</h3>
     <div class="method-sig">iterProfessorRatings(professorId: string, options?): AsyncGenerator&lt;Rating&gt;</div>
-    <p>Async iterator that yields every rating for a professor. Handles pagination automatically.</p>
+    <p>Async iterator that yields every rating for a professor.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
       <tr><td><code>professorId</code></td><td><code>string</code></td><td>&mdash;</td><td>Legacy numeric professor ID</td></tr>
@@ -233,35 +198,36 @@ if (page.has_next_page) {
       <tr><td><code>options.course_filter</code></td><td><code>string | null</code></td><td><code>null</code></td><td>Filter ratings by course</td></tr>
     </table>
     <p><strong>Yields:</strong> <a href="types.html#Rating"><code>Rating</code></a></p>
-    <pre><code>for await (const rating of client.iterProfessorRatings("2823076", {
+    <pre><code class="language-typescript">for await (const rating of client.iterProfessorRatings("2823076", {
   since: new Date("2024-01-01"),
 })) {
   console.log(rating.date, rating.quality, rating.comment);
 }</code></pre>
 
-    <!-- ================================================================== -->
-    <h2>Low-level</h2>
-    <!-- ================================================================== -->
+    <h2 id="low-level">Low-level <a href="#low-level" class="anchor">#</a></h2>
 
-    <!-- rawQuery -->
-    <h3>rawQuery</h3>
+    <h3 id="rawQuery">rawQuery</h3>
     <div class="method-sig">rawQuery(payload: Record&lt;string, unknown&gt;): Promise&lt;Record&lt;string, unknown&gt;&gt;</div>
-    <p>Send a raw JSON / GraphQL payload to the RMP endpoint. Use this for custom queries when the high-level methods don't expose what you need.</p>
+    <p>Send a raw JSON / GraphQL payload to the RMP endpoint.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
       <tr><td><code>payload</code></td><td><code>Record&lt;string, unknown&gt;</code></td><td>Object with at least <code>query</code> and optionally <code>operationName</code>, <code>variables</code></td></tr>
     </table>
     <p><strong>Returns:</strong> The full parsed response body.</p>
-    <pre><code>const data = await client.rawQuery({
-  query: "{ viewer { id } }",
-});
+    <pre><code class="language-typescript">const data = await client.rawQuery({ query: "{ viewer { id } }" });
 console.log(data);</code></pre>
 
-    <!-- close -->
-    <h3>close</h3>
+    <h3 id="close">close</h3>
     <div class="method-sig">close(): Promise&lt;void&gt;</div>
-    <p>Close the HTTP client (aborts in-flight requests) and clear all rating caches. Safe to call multiple times.</p>
-    <pre><code>await client.close();</code></pre>
+    <p>Close the HTTP client (aborts in-flight requests) and clear all rating caches.</p>
+    <pre><code class="language-typescript">await client.close();</code></pre>
   </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul id="toc-list"></ul>
+  </aside>
+
+  <script src="script.js"></script>
 </body>
 </html>

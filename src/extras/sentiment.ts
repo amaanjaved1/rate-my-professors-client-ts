@@ -1,8 +1,10 @@
 /**
- * Optional sentiment analysis. Requires a sentiment library to be installed
- * by the consumer (e.g. natural, sentiment, or similar) and passed in,
- * or use the optional peer dependency.
+ * Sentiment analysis for rating comments using the AFINN-165 lexicon.
  */
+
+import Sentiment from "sentiment";
+
+const analyzer = new Sentiment();
 
 export type SentimentLabel =
   | "very positive"
@@ -12,28 +14,41 @@ export type SentimentLabel =
   | "very negative";
 
 export interface SentimentResult {
+  /** Raw aggregate AFINN score (unbounded integer). */
   score: number;
+  /** Normalized score per word, typically in [-1, 1]. */
+  comparative: number;
+  /** Human-readable label derived from the comparative score. */
   label: SentimentLabel;
 }
 
+function toLabel(comparative: number): SentimentLabel {
+  if (comparative > 0.5) return "very positive";
+  if (comparative > 0.2) return "positive";
+  if (comparative < -0.5) return "very negative";
+  if (comparative < -0.2) return "negative";
+  return "neutral";
+}
+
 /**
- * Return a simple sentiment score/label for the given text.
- * You must provide an analyzer that returns a polarity in [-1, 1].
- * Example with a hypothetical sentiment package:
+ * Analyze the sentiment of a comment.
  *
- *   import { analyzeSentiment } from "ratemyprofessors-client/extras/sentiment";
- *   const result = analyzeSentiment("Great professor!", (text) => sentiment(text).score);
+ * Uses the AFINN-165 word list + Emoji Sentiment Ranking under the hood.
+ * No external API calls -- everything runs locally.
+ *
+ * ```ts
+ * import { analyzeSentiment } from "ratemyprofessors-client/extras";
+ *
+ * const result = analyzeSentiment("Great professor, really clear lectures!");
+ * console.log(result.label);       // "positive"
+ * console.log(result.comparative); // 0.5
+ * ```
  */
-export function analyzeSentiment(
-  text: string,
-  getPolarity: (text: string) => number
-): SentimentResult {
-  const score = getPolarity(text);
-  let label: SentimentLabel;
-  if (score > 0.5) label = "very positive";
-  else if (score > 0.2) label = "positive";
-  else if (score < -0.5) label = "very negative";
-  else if (score < -0.2) label = "negative";
-  else label = "neutral";
-  return { score, label };
+export function analyzeSentiment(text: string): SentimentResult {
+  const result = analyzer.analyze(text);
+  return {
+    score: result.score,
+    comparative: result.comparative,
+    label: toLabel(result.comparative),
+  };
 }

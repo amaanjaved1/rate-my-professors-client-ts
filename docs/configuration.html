@@ -5,133 +5,78 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Configuration &mdash; RMP Client</title>
   <link rel="stylesheet" href="style.css" />
+  <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+  <script>
+    (function(){var t=localStorage.getItem('rmp-docs-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark')})();
+  </script>
 </head>
 <body>
+  <header class="topbar">
+    <div class="topbar-right">
+      <a href="https://github.com/amaanjaved1/rate-my-professors-client-ts" class="topbar-btn" target="_blank" rel="noopener" aria-label="GitHub">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      </a>
+      <button class="topbar-btn" id="theme-toggle" aria-label="Toggle theme"></button>
+    </div>
+  </header>
+
   <aside class="sidebar">
-    <h2>RMP Client</h2>
-    <nav>
-      <ul>
-        <li><a href="index.html">Home</a></li>
-        <li><a href="functions.html">Functions</a></li>
-        <li><a href="types.html">Types</a></li>
-        <li><a href="errors.html">Errors</a></li>
-        <li><a href="configuration.html" class="active">Configuration</a></li>
-        <li><a href="extras.html">Extras</a></li>
-      </ul>
-    </nav>
+    <div class="sidebar-brand">RMP API Docs</div>
+    <nav><ul>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="functions.html">Functions</a></li>
+      <li><a href="types.html">Types</a></li>
+      <li><a href="errors.html">Errors</a></li>
+      <li><a href="configuration.html" class="active">Configuration</a></li>
+      <li><a href="extras.html">Extras</a></li>
+    </ul></nav>
   </aside>
 
   <main class="content">
     <h1>Configuration</h1>
-    <p>
-      The client's behavior is controlled by a <code>RMPClientConfig</code> object.
-      Build one with <code>createConfig()</code> and pass it to the constructor.
-      If you don't pass config, the client uses sensible defaults.
-    </p>
+    <p>The client's behavior is controlled by a <code>RMPClientConfig</code> object. Build one with <code>createConfig()</code> and pass it to the constructor. If you don't pass config, the client uses sensible defaults.</p>
 
-    <h2>Default Usage</h2>
-    <pre><code>import { RMPClient } from "ratemyprofessors-client";
-
-// Uses all defaults
+    <h2 id="default-usage">Default Usage <a href="#default-usage" class="anchor">#</a></h2>
+    <pre><code class="language-typescript">import { RMPClient } from "ratemyprofessors-client";
 const client = new RMPClient();</code></pre>
 
-    <h2>Custom Configuration</h2>
-    <pre><code>import { RMPClient, createConfig } from "ratemyprofessors-client";
+    <h2 id="custom-configuration">Custom Configuration <a href="#custom-configuration" class="anchor">#</a></h2>
+    <pre><code class="language-typescript">import { RMPClient, createConfig } from "ratemyprofessors-client";
 
 const client = new RMPClient(
-  createConfig({
-    rate_limit_per_minute: 30,
-    max_retries: 5,
-    timeout_seconds: 15,
-  })
+  createConfig({ rate_limit_per_minute: 30, max_retries: 5, timeout_seconds: 15 })
 );</code></pre>
 
-    <h2>createConfig</h2>
+    <h2 id="create-config">createConfig <a href="#create-config" class="anchor">#</a></h2>
     <div class="method-sig">createConfig(overrides?: Partial&lt;RMPClientConfig&gt;): RMPClientConfig</div>
-    <p>Builds a full config by merging your overrides onto the defaults. Only the fields you provide are overridden; everything else keeps its default.</p>
+    <p>Builds a full config by merging your overrides onto the defaults.</p>
 
-    <h2>RMPClientConfig</h2>
+    <h2 id="rmp-client-config">RMPClientConfig <a href="#rmp-client-config" class="anchor">#</a></h2>
     <table>
       <tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
-      <tr>
-        <td><code>base_url</code></td>
-        <td><code>string</code></td>
-        <td><code>"https://www.ratemyprofessors.com/graphql"</code></td>
-        <td>GraphQL endpoint URL</td>
-      </tr>
-      <tr>
-        <td><code>timeout_seconds</code></td>
-        <td><code>number</code></td>
-        <td><code>10</code></td>
-        <td>Request timeout in seconds</td>
-      </tr>
-      <tr>
-        <td><code>max_retries</code></td>
-        <td><code>number</code></td>
-        <td><code>3</code></td>
-        <td>Maximum retries on 5xx or network errors</td>
-      </tr>
-      <tr>
-        <td><code>rate_limit_per_minute</code></td>
-        <td><code>number</code></td>
-        <td><code>60</code></td>
-        <td>Maximum requests per minute (token bucket). Requests exceeding this are delayed until a token is available.</td>
-      </tr>
-      <tr>
-        <td><code>user_agent</code></td>
-        <td><code>string</code></td>
-        <td>Firefox UA string</td>
-        <td>User-Agent header sent with every request</td>
-      </tr>
-      <tr>
-        <td><code>default_headers</code></td>
-        <td><code>Record&lt;string, string&gt;</code></td>
-        <td>User-Agent + Accept-Language</td>
-        <td>Headers merged into every request</td>
-      </tr>
+      <tr><td><code>base_url</code></td><td><code>string</code></td><td><code>"https://www.ratemyprofessors.com/graphql"</code></td><td>GraphQL endpoint URL</td></tr>
+      <tr><td><code>timeout_seconds</code></td><td><code>number</code></td><td><code>10</code></td><td>Request timeout in seconds</td></tr>
+      <tr><td><code>max_retries</code></td><td><code>number</code></td><td><code>3</code></td><td>Maximum retries on 5xx or network errors</td></tr>
+      <tr><td><code>rate_limit_per_minute</code></td><td><code>number</code></td><td><code>60</code></td><td>Maximum requests per minute (token bucket)</td></tr>
+      <tr><td><code>user_agent</code></td><td><code>string</code></td><td>Firefox UA string</td><td>User-Agent header sent with every request</td></tr>
+      <tr><td><code>default_headers</code></td><td><code>Record&lt;string, string&gt;</code></td><td>User-Agent + Accept-Language</td><td>Headers merged into every request</td></tr>
     </table>
 
-    <h2>Rate Limiting</h2>
-    <p>
-      The client uses a <strong>token bucket</strong> algorithm. The bucket holds up to
-      <code>rate_limit_per_minute</code> tokens and refills at a continuous rate
-      (one token every <code>60 / rate_limit_per_minute</code> seconds). Each request
-      consumes one token. If the bucket is empty, the request waits until a token becomes available.
-    </p>
-    <p>
-      For example, with the default of 60 requests per minute, one token refills every second.
-      If you send a burst of 60 requests, the 61st will wait ~1 second before proceeding.
-    </p>
-    <pre><code>// Lower rate for polite scraping
-const client = new RMPClient(
-  createConfig({ rate_limit_per_minute: 10 })
-);
+    <h2 id="rate-limiting">Rate Limiting <a href="#rate-limiting" class="anchor">#</a></h2>
+    <p>The client uses a <strong>token bucket</strong> algorithm. The bucket holds up to <code>rate_limit_per_minute</code> tokens and refills continuously. Each request consumes one token.</p>
+    <pre><code class="language-typescript">const client = new RMPClient(createConfig({ rate_limit_per_minute: 10 }));</code></pre>
 
-// Higher rate for batch jobs
-const client = new RMPClient(
-  createConfig({ rate_limit_per_minute: 120 })
-);</code></pre>
+    <h2 id="retries">Retries <a href="#retries" class="anchor">#</a></h2>
+    <p>Failed requests (5xx or network errors) are retried with exponential backoff. If all retries fail, a <a href="errors.html#RetryError"><code>RetryError</code></a> is thrown.</p>
+    <pre><code class="language-typescript">const client = new RMPClient(createConfig({ max_retries: 5 }));</code></pre>
 
-    <h2>Retries</h2>
-    <p>
-      Failed requests (5xx status codes or network errors) are retried up to <code>max_retries</code>
-      times with exponential backoff. If all retries fail, a
-      <a href="errors.html#RetryError"><code>RetryError</code></a> is thrown containing the last underlying error.
-    </p>
-    <pre><code>// More resilient client
-const client = new RMPClient(
-  createConfig({ max_retries: 5 })
-);</code></pre>
-
-    <h2>Timeouts</h2>
-    <p>
-      Each individual request has a timeout of <code>timeout_seconds</code>.
-      If a request takes longer, it's aborted and counted as a failure (potentially retried).
-    </p>
-    <pre><code>// Longer timeout for slow networks
-const client = new RMPClient(
-  createConfig({ timeout_seconds: 30 })
-);</code></pre>
+    <h2 id="timeouts">Timeouts <a href="#timeouts" class="anchor">#</a></h2>
+    <p>Each request has a timeout of <code>timeout_seconds</code>. If exceeded, the request is aborted and may be retried.</p>
+    <pre><code class="language-typescript">const client = new RMPClient(createConfig({ timeout_seconds: 30 }));</code></pre>
   </main>
+
+  <aside class="toc"><div class="toc-title">On this page</div><ul id="toc-list"></ul></aside>
+  <script src="script.js"></script>
 </body>
 </html>

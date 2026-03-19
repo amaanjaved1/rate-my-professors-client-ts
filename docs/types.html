@@ -5,10 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Types &mdash; RMP Client</title>
   <link rel="stylesheet" href="style.css" />
+  <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+  <script>
+    (function(){var t=localStorage.getItem('rmp-docs-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark')})();
+  </script>
 </head>
 <body>
+  <header class="topbar">
+    <div class="topbar-right">
+      <a href="https://github.com/amaanjaved1/rate-my-professors-client-ts" class="topbar-btn" target="_blank" rel="noopener" aria-label="GitHub">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      </a>
+      <button class="topbar-btn" id="theme-toggle" aria-label="Toggle theme"></button>
+    </div>
+  </header>
+
   <aside class="sidebar">
-    <h2>RMP Client</h2>
+    <div class="sidebar-brand">RMP API Docs</div>
     <nav>
       <ul>
         <li><a href="index.html">Home</a></li>
@@ -24,21 +38,14 @@
   <main class="content">
     <h1>Types</h1>
     <p>All methods return typed data. Import any interface you need:</p>
-    <pre><code>import type {
-  School,
-  Professor,
-  Rating,
-  SchoolRating,
-  RatingDistributionBucket,
-  ProfessorSearchResult,
-  SchoolSearchResult,
-  ProfessorRatingsPage,
-  SchoolRatingsPage,
-  CompareSchoolsResult,
+    <pre><code class="language-typescript">import type {
+  School, Professor, Rating, SchoolRating,
+  RatingDistributionBucket, ProfessorSearchResult,
+  SchoolSearchResult, ProfessorRatingsPage,
+  SchoolRatingsPage, CompareSchoolsResult,
 } from "ratemyprofessors-client";</code></pre>
 
-    <!-- School -->
-    <h2 id="School">School</h2>
+    <h2 id="School">School <a href="#School" class="anchor">#</a></h2>
     <p>A school (university or college). Category fields are populated by <code>getSchool()</code> but may be absent in search results.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
@@ -59,8 +66,7 @@
       <tr><td><code>food</code></td><td><code>number | null</code></td><td>Food quality rating</td></tr>
     </table>
 
-    <!-- Professor -->
-    <h2 id="Professor">Professor</h2>
+    <h2 id="Professor">Professor <a href="#Professor" class="anchor">#</a></h2>
     <p>A professor (teacher) as returned by search, <code>getProfessor()</code>, or ratings pages.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
@@ -68,75 +74,63 @@
       <tr><td><code>name</code></td><td><code>string</code></td><td>Full name</td></tr>
       <tr><td><code>department</code></td><td><code>string | null</code></td><td>Department name</td></tr>
       <tr><td><code>school</code></td><td><code>School | null</code></td><td>Associated school</td></tr>
-      <tr><td><code>url</code></td><td><code>string | null</code></td><td>RMP profile URL (when available)</td></tr>
+      <tr><td><code>url</code></td><td><code>string | null</code></td><td>RMP profile URL</td></tr>
       <tr><td><code>overall_rating</code></td><td><code>number | null</code></td><td>Average rating</td></tr>
       <tr><td><code>num_ratings</code></td><td><code>number | null</code></td><td>Total number of ratings</td></tr>
       <tr><td><code>percent_take_again</code></td><td><code>number | null</code></td><td>"Would take again" percentage</td></tr>
       <tr><td><code>level_of_difficulty</code></td><td><code>number | null</code></td><td>Average difficulty</td></tr>
-      <tr><td><code>tags</code></td><td><code>string[]</code></td><td>Tag list (currently empty in GraphQL API)</td></tr>
-      <tr><td><code>rating_distribution</code></td><td><code>Record&lt;number, RatingDistributionBucket&gt; | null</code></td><td>Star distribution (currently null in GraphQL API)</td></tr>
+      <tr><td><code>tags</code></td><td><code>string[]</code></td><td>Tag list</td></tr>
+      <tr><td><code>rating_distribution</code></td><td><code>Record&lt;number, RatingDistributionBucket&gt; | null</code></td><td>Star distribution</td></tr>
     </table>
 
-    <!-- Rating -->
-    <h2 id="Rating">Rating</h2>
+    <h2 id="Rating">Rating <a href="#Rating" class="anchor">#</a></h2>
     <p>A single professor rating (review).</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
       <tr><td><code>date</code></td><td><code>Date</code></td><td>Date the rating was submitted</td></tr>
       <tr><td><code>comment</code></td><td><code>string</code></td><td>Review text</td></tr>
-      <tr><td><code>quality</code></td><td><code>number | null</code></td><td>Quality / clarity rating (maps to RMP's clarityRating or helpfulRating)</td></tr>
+      <tr><td><code>quality</code></td><td><code>number | null</code></td><td>Quality / clarity rating</td></tr>
       <tr><td><code>difficulty</code></td><td><code>number | null</code></td><td>Difficulty rating</td></tr>
-      <tr><td><code>tags</code></td><td><code>string[]</code></td><td>Tags (e.g. "Tough grader", "Get ready to read")</td></tr>
+      <tr><td><code>tags</code></td><td><code>string[]</code></td><td>Tags (e.g. "Tough grader")</td></tr>
       <tr><td><code>course_raw</code></td><td><code>string | null</code></td><td>Raw course name as entered by the reviewer</td></tr>
       <tr><td><code>details</code></td><td><code>Record&lt;string, unknown&gt; | null</code></td><td>Extra info: <code>for_credit</code>, <code>attendance</code>, <code>grade</code>, <code>textbook</code></td></tr>
       <tr><td><code>thumbs_up</code></td><td><code>number | null</code></td><td>Helpful upvote count</td></tr>
       <tr><td><code>thumbs_down</code></td><td><code>number | null</code></td><td>Not-helpful downvote count</td></tr>
     </table>
 
-    <!-- SchoolRating -->
-    <h2 id="SchoolRating">SchoolRating</h2>
-    <p>A single school rating (review). <code>overall</code> is computed as the average of all category scores.</p>
+    <h2 id="SchoolRating">SchoolRating <a href="#SchoolRating" class="anchor">#</a></h2>
+    <p>A single school rating (review). <code>overall</code> is the average of all category scores.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
       <tr><td><code>date</code></td><td><code>Date</code></td><td>Date the rating was submitted</td></tr>
       <tr><td><code>comment</code></td><td><code>string</code></td><td>Review text</td></tr>
       <tr><td><code>overall</code></td><td><code>number | null</code></td><td>Average of all category scores</td></tr>
-      <tr><td><code>category_ratings</code></td><td><code>Record&lt;string, number&gt; | null</code></td><td>
-        Per-category scores. Keys: <code>reputation</code>, <code>location</code>,
-        <code>opportunities</code>, <code>facilities</code>, <code>internet</code>,
-        <code>food</code>, <code>clubs</code>, <code>social</code>, <code>happiness</code>,
-        <code>safety</code>
-      </td></tr>
+      <tr><td><code>category_ratings</code></td><td><code>Record&lt;string, number&gt; | null</code></td><td>Per-category scores</td></tr>
       <tr><td><code>thumbs_up</code></td><td><code>number | null</code></td><td>Helpful upvote count</td></tr>
       <tr><td><code>thumbs_down</code></td><td><code>number | null</code></td><td>Not-helpful downvote count</td></tr>
     </table>
 
-    <!-- RatingDistributionBucket -->
-    <h2 id="RatingDistributionBucket">RatingDistributionBucket</h2>
-    <p>One bucket in a professor's star-rating distribution (e.g. "5 stars: 10 reviews, 40%").</p>
+    <h2 id="RatingDistributionBucket">RatingDistributionBucket <a href="#RatingDistributionBucket" class="anchor">#</a></h2>
+    <p>One bucket in a professor's star-rating distribution.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
       <tr><td><code>count</code></td><td><code>number</code></td><td>Number of ratings in this bucket</td></tr>
       <tr><td><code>percentage</code></td><td><code>number</code></td><td>Percentage of total ratings</td></tr>
     </table>
-    <div class="callout">
-      Currently always <code>null</code> in GraphQL API responses. Kept for forward compatibility.
-    </div>
+    <div class="callout">Currently always <code>null</code> in GraphQL API responses. Kept for forward compatibility.</div>
 
-    <!-- ProfessorSearchResult -->
-    <h2 id="ProfessorSearchResult">ProfessorSearchResult</h2>
+    <h2 id="ProfessorSearchResult">ProfessorSearchResult <a href="#ProfessorSearchResult" class="anchor">#</a></h2>
     <p>Paginated result from <code>searchProfessors()</code> or <code>listProfessorsForSchool()</code>.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
       <tr><td><code>professors</code></td><td><code>Professor[]</code></td><td>Professors on this page</td></tr>
-      <tr><td><code>total</code></td><td><code>number | null</code></td><td>Total result count (when available)</td></tr>
+      <tr><td><code>total</code></td><td><code>number | null</code></td><td>Total result count</td></tr>
       <tr><td><code>page_size</code></td><td><code>number</code></td><td>Number of results returned</td></tr>
       <tr><td><code>has_next_page</code></td><td><code>boolean</code></td><td>Whether more results are available</td></tr>
       <tr><td><code>next_cursor</code></td><td><code>string | null</code></td><td>Pass to the next call for the next page</td></tr>
     </table>
 
-    <!-- SchoolSearchResult -->
-    <h2 id="SchoolSearchResult">SchoolSearchResult</h2>
+    <h2 id="SchoolSearchResult">SchoolSearchResult <a href="#SchoolSearchResult" class="anchor">#</a></h2>
     <p>Paginated result from <code>searchSchools()</code>.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
@@ -147,8 +141,7 @@
       <tr><td><code>next_cursor</code></td><td><code>string | null</code></td><td>Pass to the next call for the next page</td></tr>
     </table>
 
-    <!-- ProfessorRatingsPage -->
-    <h2 id="ProfessorRatingsPage">ProfessorRatingsPage</h2>
+    <h2 id="ProfessorRatingsPage">ProfessorRatingsPage <a href="#ProfessorRatingsPage" class="anchor">#</a></h2>
     <p>One page of professor ratings. Subsequent pages are served from an in-memory cache.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
@@ -158,9 +151,8 @@
       <tr><td><code>next_cursor</code></td><td><code>string | null</code></td><td>Pass to the next call for more ratings</td></tr>
     </table>
 
-    <!-- SchoolRatingsPage -->
-    <h2 id="SchoolRatingsPage">SchoolRatingsPage</h2>
-    <p>One page of school ratings. Same cursor/cache behavior as professor ratings.</p>
+    <h2 id="SchoolRatingsPage">SchoolRatingsPage <a href="#SchoolRatingsPage" class="anchor">#</a></h2>
+    <p>One page of school ratings.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
       <tr><td><code>school</code></td><td><code>School</code></td><td>The school these ratings belong to</td></tr>
@@ -169,8 +161,7 @@
       <tr><td><code>next_cursor</code></td><td><code>string | null</code></td><td>Pass to the next call for more ratings</td></tr>
     </table>
 
-    <!-- CompareSchoolsResult -->
-    <h2 id="CompareSchoolsResult">CompareSchoolsResult</h2>
+    <h2 id="CompareSchoolsResult">CompareSchoolsResult <a href="#CompareSchoolsResult" class="anchor">#</a></h2>
     <p>Result of comparing two schools.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
@@ -178,5 +169,12 @@
       <tr><td><code>school_2</code></td><td><code>School</code></td><td>Second school</td></tr>
     </table>
   </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul id="toc-list"></ul>
+  </aside>
+
+  <script src="script.js"></script>
 </body>
 </html>
