@@ -89,7 +89,7 @@ console.log(cmp.school_1.name, "vs", cmp.school_2.name);</code></pre>
 
     <h3 id="getSchoolRatingsPage">getSchoolRatingsPage</h3>
     <div class="method-sig">getSchoolRatingsPage(schoolId: string, options?): Promise&lt;SchoolRatingsPage&gt;</div>
-    <p>Fetch one page of ratings for a school. All ratings are pre-fetched and cached on first call.</p>
+    <p>Fetch one page of ratings for a school.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
       <tr><td><code>schoolId</code></td><td><code>string</code></td><td>&mdash;</td><td>Legacy numeric school ID</td></tr>
@@ -176,7 +176,7 @@ console.log(prof.name, prof.department, prof.overall_rating);</code></pre>
 
     <h3 id="getProfessorRatingsPage">getProfessorRatingsPage</h3>
     <div class="method-sig">getProfessorRatingsPage(professorId: string, options?): Promise&lt;ProfessorRatingsPage&gt;</div>
-    <p>Fetch one page of ratings for a professor. All ratings are pre-fetched and cached on first call.</p>
+    <p>Fetch one page of ratings for a professor.</p>
     <table>
       <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
       <tr><td><code>professorId</code></td><td><code>string</code></td><td>&mdash;</td><td>Legacy numeric professor ID</td></tr>
@@ -220,7 +220,7 @@ console.log(data);</code></pre>
 
     <h3 id="close">close</h3>
     <div class="method-sig">close(): Promise&lt;void&gt;</div>
-    <p>Close the HTTP client (aborts in-flight requests) and clear all rating caches.</p>
+    <p>Close the HTTP client (aborts in-flight requests).</p>
     <pre><code class="language-typescript">await client.close();</code></pre>
   </main>
 

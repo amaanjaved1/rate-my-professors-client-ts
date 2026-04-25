@@ -91,7 +91,7 @@ try {
       <li><code>searchSchools(query)</code> &mdash; Search schools by name. Returns paginated results.</li>
       <li><code>getSchool(schoolId)</code> &mdash; Get a single school by its numeric ID.</li>
       <li><code>getCompareSchools(id1, id2)</code> &mdash; Fetch two schools side by side.</li>
-      <li><code>getSchoolRatingsPage(schoolId)</code> &mdash; One page of school ratings (cached after first fetch).</li>
+      <li><code>getSchoolRatingsPage(schoolId)</code> &mdash; One page of school ratings.</li>
       <li><code>iterSchoolRatings(schoolId)</code> &mdash; Async iterator over all school ratings.</li>
     </ul>
 
@@ -101,14 +101,14 @@ try {
       <li><code>listProfessorsForSchool(schoolId)</code> &mdash; List professors at a given school.</li>
       <li><code>iterProfessorsForSchool(schoolId)</code> &mdash; Async iterator over all professors at a school.</li>
       <li><code>getProfessor(professorId)</code> &mdash; Get a single professor by their numeric ID.</li>
-      <li><code>getProfessorRatingsPage(professorId)</code> &mdash; One page of professor ratings (cached after first fetch).</li>
+      <li><code>getProfessorRatingsPage(professorId)</code> &mdash; One page of professor ratings.</li>
       <li><code>iterProfessorRatings(professorId)</code> &mdash; Async iterator over all professor ratings.</li>
     </ul>
 
     <h3>Low-level</h3>
     <ul>
       <li><code>rawQuery(payload)</code> &mdash; Send a raw GraphQL payload to the RMP endpoint.</li>
-      <li><code>close()</code> &mdash; Close the client, abort in-flight requests, and clear caches.</li>
+      <li><code>close()</code> &mdash; Close the client and abort in-flight requests.</li>
     </ul>
 
     <h2 id="errors">Errors <a href="#errors" class="anchor">#</a></h2>
@@ -116,7 +116,6 @@ try {
     <ul>
       <li><code>HttpError</code> &mdash; Non-2xx HTTP status (e.g. 404, 500).</li>
       <li><code>ParsingError</code> &mdash; Response couldn't be parsed or entity not found.</li>
-      <li><code>RateLimitError</code> &mdash; Local rate limiter blocked the request.</li>
       <li><code>RetryError</code> &mdash; Failed after all retry attempts.</li>
       <li><code>RMPAPIError</code> &mdash; GraphQL API returned errors.</li>
       <li><code>ConfigurationError</code> &mdash; Invalid client configuration.</li>
