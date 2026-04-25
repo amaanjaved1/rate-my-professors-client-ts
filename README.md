@@ -31,7 +31,7 @@ const client = new RMPClient();
 - `searchSchools(query)` — Search schools by name. Returns paginated results.
 - `getSchool(schoolId)` — Get a single school by its numeric ID.
 - `getCompareSchools(schoolId1, schoolId2)` — Fetch two schools side by side.
-- `getSchoolRatingsPage(schoolId)` — Get one page of school ratings (cached after first fetch).
+- `getSchoolRatingsPage(schoolId)` — Get one page of school ratings.
 - `iterSchoolRatings(schoolId)` — Async iterator over all ratings for a school.
 
 **Professors**
@@ -40,7 +40,7 @@ const client = new RMPClient();
 - `listProfessorsForSchool(schoolId)` — List professors at a given school.
 - `iterProfessorsForSchool(schoolId)` — Async iterator over all professors at a school.
 - `getProfessor(professorId)` — Get a single professor by their numeric ID.
-- `getProfessorRatingsPage(professorId)` — Get one page of professor ratings (cached after first fetch).
+- `getProfessorRatingsPage(professorId)` — Get one page of professor ratings.
 - `iterProfessorRatings(professorId)` — Async iterator over all ratings for a professor.
 
 **Low-level**
@@ -49,7 +49,7 @@ const client = new RMPClient();
 
 **Lifecycle**
 
-- `close()` — Close the client, abort in-flight requests, and clear caches.
+- `close()` — Close the client and abort in-flight requests.
 
 ## Errors and What They Mean
 
@@ -57,7 +57,6 @@ All errors extend `RMPError`. Catch and narrow with `instanceof`:
 
 - **`HttpError`** — The server returned a non-2xx status code (e.g. 404, 500).
 - **`ParsingError`** — The response couldn't be parsed (e.g. professor/school not found).
-- **`RateLimitError`** — The client's local rate limiter blocked the request.
 - **`RetryError`** — The request failed after all retry attempts. Contains the last underlying error.
 - **`RMPAPIError`** — The GraphQL API returned an `errors` array in the response.
 - **`ConfigurationError`** — Invalid client configuration (e.g. missing URL).
