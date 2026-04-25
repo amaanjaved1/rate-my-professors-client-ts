@@ -2,7 +2,7 @@
  * Error types raised by the RateMyProfessors client.
  *
  * All client-specific errors extend {@link RMPError}. Use `instanceof` or
- * `error.name` to distinguish configuration, HTTP, rate-limit, retry, API, and parsing errors.
+ * `error.name` to distinguish configuration, HTTP, retry, API, and parsing errors.
  */
 
 /**
@@ -41,18 +41,6 @@ export class HttpError extends RMPError {
     super(`HTTP ${status_code} for ${url}`);
     this.name = "HttpError";
     Object.setPrototypeOf(this, HttpError.prototype);
-  }
-}
-
-/**
- * Thrown when the local token-bucket rate limiter would exceed the configured limit.
- * The client blocks until a token is available by default; this is used when using non-blocking mode.
- */
-export class RateLimitError extends RMPError {
-  constructor(message: string = "Local rate limit exceeded") {
-    super(message);
-    this.name = "RateLimitError";
-    Object.setPrototypeOf(this, RateLimitError.prototype);
   }
 }
 

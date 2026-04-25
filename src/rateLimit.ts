@@ -1,14 +1,10 @@
 /**
  * Token-bucket rate limiter for the RMP client.
  *
- * The client allows a fixed number of requests per minute (capacity).
- * Tokens refill continuously at a constant rate (refillPerSecond). Each
- * request consumes one token (or more); if no token is available, consume()
- * either blocks until a token is available or throws {@link RateLimitError}
- * when block is false.
+ * The client uses a fixed limit of 60 requests per minute. Tokens refill
+ * continuously at 1 per second. Each request consumes one token; if none are
+ * available, consume() blocks until a token becomes available.
  */
-
-import { RateLimitError } from "./errors.js";
 
 /**
  * Token bucket: limits the rate of operations (e.g. HTTP requests) by
@@ -32,22 +28,17 @@ export class TokenBucket {
   }
 
   /**
-   * Consumes one or more tokens. If not enough tokens are available:
-   * - If block is true (default), waits (sleeps) until enough have refilled, then consumes.
-   * - If block is false, throws {@link RateLimitError} immediately.
+   * Consumes one or more tokens. If not enough tokens are available, waits
+   * (sleeps) until enough have refilled, then consumes.
    *
    * @param amount - Number of tokens to consume (default 1).
-   * @param block - If true, wait until tokens are available; if false, throw when insufficient.
    */
-  async consume(amount: number = 1, block: boolean = true): Promise<void> {
+  async consume(amount: number = 1): Promise<void> {
     while (true) {
       this._refill();
       if (this._tokens >= amount) {
         this._tokens -= amount;
         return;
-      }
-      if (!block) {
-        throw new RateLimitError("Local rate limit exceeded");
       }
       const needed = amount - this._tokens;
       const sleepMs = Math.max((needed / this._refillPerSecond) * 1000, 10);

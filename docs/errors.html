@@ -37,7 +37,7 @@
   <main class="content">
     <h1>Errors</h1>
     <p>All client-specific errors extend <code>RMPError</code>, which extends <code>Error</code>. Use <code>instanceof</code> to distinguish between error types.</p>
-    <pre><code class="language-typescript">import { RMPError, HttpError, ParsingError, RateLimitError, RetryError, RMPAPIError, ConfigurationError } from "ratemyprofessors-client";</code></pre>
+    <pre><code class="language-typescript">import { RMPError, HttpError, ParsingError, RetryError, RMPAPIError, ConfigurationError } from "ratemyprofessors-client";</code></pre>
 
     <h2 id="catching-errors">Catching Errors <a href="#catching-errors" class="anchor">#</a></h2>
     <pre><code class="language-typescript">try {
@@ -46,7 +46,6 @@
   if (e instanceof ParsingError) console.error("Not found:", e.message);
   else if (e instanceof HttpError) console.error("HTTP", e.status_code, e.url);
   else if (e instanceof RetryError) console.error("Gave up:", e.last_error.message);
-  else if (e instanceof RateLimitError) console.error("Too many requests:", e.message);
   else if (e instanceof RMPAPIError) console.error("API error:", e.message, e.details);
   else throw e;
 }</code></pre>
@@ -62,10 +61,6 @@
     <h2 id="ParsingError">ParsingError <a href="#ParsingError" class="anchor">#</a></h2>
     <p>Thrown when the response can't be parsed or when the entity doesn't exist.</p>
     <table><tr><th>Property</th><th>Type</th><th>Description</th></tr><tr><td><code>message</code></td><td><code>string</code></td><td>What went wrong</td></tr></table>
-
-    <h2 id="RateLimitError">RateLimitError <a href="#RateLimitError" class="anchor">#</a></h2>
-    <p>Thrown when the local token-bucket rate limiter blocks a request.</p>
-    <table><tr><th>Property</th><th>Type</th><th>Description</th></tr><tr><td><code>message</code></td><td><code>string</code></td><td>Defaults to "Local rate limit exceeded"</td></tr></table>
 
     <h2 id="RetryError">RetryError <a href="#RetryError" class="anchor">#</a></h2>
     <p>Thrown when all retry attempts are exhausted.</p>

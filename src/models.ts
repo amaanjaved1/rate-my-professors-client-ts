@@ -60,7 +60,6 @@ export interface Professor {
   name: string;
   department?: string | null;
   school?: School | null;
-  url?: string | null;
   overall_rating?: number | null;
   num_ratings?: number | null;
   percent_take_again?: number | null;
@@ -100,8 +99,7 @@ export interface Rating {
 
 /**
  * One page of professor ratings. Pass `next_cursor` to the next
- * {@link RMPClient.getProfessorRatingsPage} call; subsequent pages are served
- * from an in-memory cache with no extra network requests.
+ * {@link RMPClient.getProfessorRatingsPage} call to load the following page.
  */
 export interface ProfessorRatingsPage {
   professor: Professor;
@@ -111,7 +109,8 @@ export interface ProfessorRatingsPage {
 }
 
 /**
- * One page of school ratings. Same cursor/cache behavior as professor ratings.
+ * One page of school ratings. Pass `next_cursor` to the next
+ * {@link RMPClient.getSchoolRatingsPage} call to load the following page.
  */
 export interface SchoolRatingsPage {
   school: School;

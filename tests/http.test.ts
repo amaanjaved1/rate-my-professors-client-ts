@@ -34,7 +34,7 @@ describe("HttpClient.postJson", () => {
   it("returns JSON on 200", async () => {
     const payload = { data: { x: 1 } };
     fetchMock.mockResolvedValueOnce(mockResponse(payload));
-    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
+    const client = new HttpClient(createConfig());
     const result = await client.postJson("", { query: "..." });
     expect(result).toEqual(payload);
     client.close();
@@ -43,14 +43,14 @@ describe("HttpClient.postJson", () => {
   it("throws RMPAPIError when errors in body", async () => {
     const body = { errors: [{ message: "Unauthorized" }] };
     fetchMock.mockResolvedValueOnce(mockResponse(body));
-    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
+    const client = new HttpClient(createConfig());
     await expect(client.postJson("", { query: "..." })).rejects.toThrow(RMPAPIError);
     client.close();
   });
 
   it("throws HttpError on 4xx", async () => {
     fetchMock.mockResolvedValueOnce(mockResponse("Forbidden", { status: 403 }));
-    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
+    const client = new HttpClient(createConfig());
     try {
       await client.postJson("", {});
     } catch (e) {
@@ -66,9 +66,7 @@ describe("HttpClient.postJson", () => {
       .mockResolvedValueOnce(mockResponse("", { status: 502 }))
       .mockResolvedValueOnce(mockResponse("", { status: 502 }))
       .mockResolvedValueOnce(mockResponse("", { status: 502 }));
-    const client = new HttpClient(
-      createConfig({ max_retries: 2, rate_limit_per_minute: 1000 })
-    );
+    const client = new HttpClient(createConfig({ max_retries: 2 }));
     try {
       await client.postJson("", {});
     } catch (e) {
@@ -83,26 +81,40 @@ describe("HttpClient.postJson", () => {
     fetchMock
       .mockResolvedValueOnce(mockResponse("", { status: 503 }))
       .mockResolvedValueOnce(mockResponse({ data: "ok" }));
-    const client = new HttpClient(
-      createConfig({ max_retries: 3, rate_limit_per_minute: 1000 })
-    );
+    const client = new HttpClient(createConfig({ max_retries: 3 }));
     const result = await client.postJson("", {});
     expect(result).toEqual({ data: "ok" });
     client.close();
   });
 
+  it("retries on 429", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(mockResponse("", { status: 429 }))
+      .mockResolvedValueOnce(mockResponse({ data: "ok" }));
+    const client = new HttpClient(createConfig({ max_retries: 1 }));
+    try {
+      const promise = client.postJson("", {});
+      await vi.runAllTimersAsync();
+      const result = await promise;
+      expect(result).toEqual({ data: "ok" });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      client.close();
+      vi.useRealTimers();
+    }
+  });
+
   it("throws RetryError on network failure after retries", async () => {
     fetchMock.mockRejectedValue(new Error("network error"));
-    const client = new HttpClient(
-      createConfig({ max_retries: 1, rate_limit_per_minute: 1000 })
-    );
+    const client = new HttpClient(createConfig({ max_retries: 1 }));
     await expect(client.postJson("", {})).rejects.toThrow(RetryError);
     client.close();
   });
 
   it("sends Content-Type and User-Agent headers", async () => {
     fetchMock.mockResolvedValueOnce(mockResponse({ data: null }));
-    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
+    const client = new HttpClient(createConfig());
     await client.postJson("", { query: "test" });
     const callHeaders = fetchMock.mock.calls[0][1].headers;
     expect(callHeaders["Content-Type"]).toBe("application/json");
@@ -113,7 +125,7 @@ describe("HttpClient.postJson", () => {
   it("resolves URL from base_url when path is empty", async () => {
     fetchMock.mockResolvedValueOnce(mockResponse({ data: null }));
     const client = new HttpClient(
-      createConfig({ base_url: "https://api.test/graphql", rate_limit_per_minute: 1000 })
+      createConfig({ base_url: "https://api.test/graphql" })
     );
     await client.postJson("", {});
     expect(fetchMock.mock.calls[0][0]).toBe("https://api.test/graphql");
@@ -123,7 +135,7 @@ describe("HttpClient.postJson", () => {
   it("resolves URL from base_url when path is given", async () => {
     fetchMock.mockResolvedValueOnce(mockResponse({ data: null }));
     const client = new HttpClient(
-      createConfig({ base_url: "https://api.test", rate_limit_per_minute: 1000 })
+      createConfig({ base_url: "https://api.test" })
     );
     await client.postJson("v2/graphql", {});
     expect(fetchMock.mock.calls[0][0]).toBe("https://api.test/v2/graphql");
@@ -133,7 +145,7 @@ describe("HttpClient.postJson", () => {
 
 describe("HttpClient.close", () => {
   it("is safe to call multiple times", () => {
-    const client = new HttpClient(createConfig({ rate_limit_per_minute: 1000 }));
+    const client = new HttpClient(createConfig());
     client.close();
     client.close();
   });
