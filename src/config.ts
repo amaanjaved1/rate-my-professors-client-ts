@@ -1,7 +1,7 @@
 /**
  * Configuration for the RateMyProfessors API client.
  *
- * All client behavior (base URL, timeouts, retries, rate limiting) is driven
+ * All client behavior (base URL, timeouts, retries) is driven
  * by {@link RMPClientConfig}. Build one with {@link createConfig},
  * then pass it to {@link RMPClient}.
  */
@@ -23,8 +23,6 @@ export interface RMPClientConfig {
   timeout_seconds: number;
   /** Max retries on 5xx or network errors. */
   max_retries: number;
-  /** Max requests per minute (token bucket). */
-  rate_limit_per_minute: number;
   /** User-Agent header value. */
   user_agent: string;
   /** Default headers merged into every request. */
@@ -49,10 +47,8 @@ export function createConfig(
     base_url: DEFAULT_BASE_URL,
     timeout_seconds: 10,
     max_retries: 3,
-    rate_limit_per_minute: 60,
     user_agent: DEFAULT_USER_AGENT,
     default_headers: { ...defaultHeaders },
     ...overrides,
   };
 }
-

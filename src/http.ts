@@ -1,8 +1,8 @@
 /**
  * HTTP client used by the RMP client: rate limiting, retries, and error mapping.
  *
- * - All requests go through a token-bucket rate limiter (see {@link TokenBucket}).
- * - Failed requests (5xx or network errors) are retried up to config.max_retries.
+ * - All requests go through a token-bucket rate limiter fixed at 60 req/min.
+ * - Failed requests (5xx, 429, or network errors) are retried up to config.max_retries.
  * - Non-2xx responses become {@link HttpError}; GraphQL `errors` in the body become {@link RMPAPIError}.
  * - Timeouts use AbortController; call {@link close} to cancel in-flight requests.
  */
@@ -10,6 +10,8 @@
 import type { RMPClientConfig } from "./config.js";
 import { HttpError, RetryError, RMPAPIError } from "./errors.js";
 import { TokenBucket } from "./rateLimit.js";
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * Low-level HTTP client with retries, rate limiting, and typed errors.
@@ -22,10 +24,7 @@ export class HttpClient {
 
   constructor(config: RMPClientConfig) {
     this._config = config;
-    this._bucket = new TokenBucket(
-      config.rate_limit_per_minute,
-      config.rate_limit_per_minute / 60
-    );
+    this._bucket = new TokenBucket(60, 1);
   }
 
   private _headers(extra?: Record<string, string>): Record<string, string> {
@@ -94,6 +93,10 @@ export class HttpClient {
         const body = await response.text();
         const err = new HttpError(response.status, url, body);
         lastError = err;
+        if (response.status === 429 && attempt < this._config.max_retries) {
+          await sleep(Math.pow(2, attempt) * 1000);
+          continue;
+        }
         if (response.status >= 500 && response.status < 600 && attempt < this._config.max_retries) {
           continue;
         }

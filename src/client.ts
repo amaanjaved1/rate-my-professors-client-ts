@@ -4,7 +4,7 @@
  * All data is fetched via POST to https://www.ratemyprofessors.com/graphql.
  * Rate limiting, retries, and timeouts are handled by {@link HttpClient}.
  *
- * Call {@link RMPClient.close} when done to release resources and clear caches.
+ * Call {@link RMPClient.close} when done to release resources.
  */
 
 import type { RMPClientConfig } from "./config.js";
@@ -79,7 +79,7 @@ function safeInt(value: unknown): number | null {
 
 /**
  * Parses RMP date strings (e.g. "2026-03-03 21:20:35 +0000 UTC") to a Date.
- * Uses only the date part at UTC midnight; invalid input yields the current date.
+ * Uses only the date part at UTC midnight; invalid input falls back to the current date.
  */
 function parseDate(dateStr: unknown): Date {
   if (typeof dateStr === "string") {
@@ -87,6 +87,7 @@ function parseDate(dateStr: unknown): Date {
     const d = new Date(datePart + "T00:00:00Z");
     if (!Number.isNaN(d.getTime())) return d;
   }
+  console.warn(`rmp_client: could not parse date: ${String(dateStr)}, using current date`);
   return new Date();
 }
 
@@ -103,16 +104,6 @@ function parseDate(dateStr: unknown): Date {
 export class RMPClient {
   private _config: RMPClientConfig;
   private _http: HttpClient | null = null;
-  /** Pre-fetched ratings per professor keyed by legacy numeric ID. */
-  private _professorRatingsCache = new Map<
-    string,
-    { professor: Professor; ratings: Rating[] }
-  >();
-  /** Pre-fetched ratings per school keyed by legacy numeric ID. */
-  private _schoolRatingsCache = new Map<
-    string,
-    { school: School; ratings: SchoolRating[] }
-  >();
 
   constructor(config?: RMPClientConfig | null) {
     this._config = config ?? createConfig();
@@ -126,7 +117,7 @@ export class RMPClient {
   }
 
   /**
-   * Closes the HTTP client (aborts in-flight requests) and clears rating caches.
+   * Closes the HTTP client (aborts in-flight requests).
    * Safe to call multiple times.
    */
   async close(): Promise<void> {
@@ -134,8 +125,6 @@ export class RMPClient {
       this._http.close();
       this._http = null;
     }
-    this._professorRatingsCache.clear();
-    this._schoolRatingsCache.clear();
   }
 
   /**
@@ -339,10 +328,6 @@ export class RMPClient {
   /**
    * Fetches a single page of ratings for a professor. Default page size is 20.
    *
-   * On the first call (no cursor) all ratings are pre-fetched via GraphQL and
-   * cached in memory, so subsequent "Load More" calls are served instantly with
-   * no additional network requests.
-   *
    * @param professorId - Legacy numeric id.
    * @param options - cursor: use page.next_cursor for the next page; page_size: default 20.
    */
@@ -354,76 +339,18 @@ export class RMPClient {
       course_filter?: string | null;
     } = {},
   ): Promise<ProfessorRatingsPage> {
-    const pageSize = options.page_size ?? 20;
-    const cursor = options.cursor ?? null;
-
-    // Serve from cache when cursor is a numeric offset into the cached array.
-    if (cursor !== null) {
-      const cached = this._professorRatingsCache.get(professorId);
-      if (cached) {
-        const start = Math.max(0, Number(cursor));
-        const slice = cached.ratings.slice(start, start + pageSize);
-        const hasNext = start + pageSize < cached.ratings.length;
-        return {
-          professor: cached.professor,
-          ratings: slice,
-          has_next_page: hasNext,
-          next_cursor: hasNext ? String(start + pageSize) : null,
-        };
-      }
-    }
-
-    // Repeated first-page call: hit cache.
-    const existing = this._professorRatingsCache.get(professorId);
-    if (existing && cursor === null) {
-      const slice = existing.ratings.slice(0, pageSize);
-      const hasNext = existing.ratings.length > pageSize;
-      return {
-        professor: existing.professor,
-        ratings: slice,
-        has_next_page: hasNext,
-        next_cursor: hasNext ? String(pageSize) : null,
-      };
-    }
-
-    // First load: fetch all ratings via GraphQL and cache.
-    const first = await this._fetchProfessorRatingsPage(professorId, {
-      first: 100,
+    return this._fetchProfessorRatingsPage(professorId, {
+      after: options.cursor,
+      first: options.page_size ?? 20,
       courseFilter: options.course_filter,
     });
-
-    let allRatings = [...first.ratings];
-    const professor = first.professor;
-    let after = first.has_next_page ? first.next_cursor : null;
-
-    while (after != null) {
-      const next = await this._fetchProfessorRatingsPage(professorId, {
-        after,
-        first: 100,
-        courseFilter: options.course_filter,
-      });
-      allRatings = allRatings.concat(next.ratings);
-      after = next.has_next_page ? next.next_cursor : null;
-    }
-
-    this._professorRatingsCache.set(professorId, {
-      professor,
-      ratings: allRatings,
-    });
-
-    const slice = allRatings.slice(0, pageSize);
-    const hasNext = allRatings.length > pageSize;
-    return {
-      professor,
-      ratings: slice,
-      has_next_page: hasNext,
-      next_cursor: hasNext ? String(pageSize) : null,
-    };
   }
 
   /**
    * Async generator that yields all ratings for a professor.
    * Optional `since` stops yielding when a rating date is before that date.
+   *
+   * Assumes the API returns ratings newest-first.
    */
   async *iterProfessorRatings(
     professorId: string,
@@ -443,6 +370,7 @@ export class RMPClient {
         course_filter: options.course_filter,
       });
       for (const rating of page.ratings) {
+        // API returns ratings newest-first; stop when we pass the cutoff date.
         if (since && rating.date.getTime() <= since.getTime()) return;
         yield rating;
       }
@@ -483,9 +411,6 @@ export class RMPClient {
   /**
    * Fetches a single page of ratings for a school. Default page size is 20.
    *
-   * On the first call (no cursor) all ratings are pre-fetched and cached so
-   * subsequent "Show More" calls are served from memory.
-   *
    * @param schoolId - Legacy numeric id.
    * @param options - cursor: use page.next_cursor; page_size: default 20.
    */
@@ -493,66 +418,17 @@ export class RMPClient {
     schoolId: string,
     options: { cursor?: string | null; page_size?: number } = {},
   ): Promise<SchoolRatingsPage> {
-    const pageSize = options.page_size ?? 20;
-    const cursor = options.cursor ?? null;
-
-    if (cursor !== null) {
-      const cached = this._schoolRatingsCache.get(schoolId);
-      if (cached) {
-        const start = Math.max(0, Number(cursor));
-        const slice = cached.ratings.slice(start, start + pageSize);
-        const hasNext = start + pageSize < cached.ratings.length;
-        return {
-          school: cached.school,
-          ratings: slice,
-          has_next_page: hasNext,
-          next_cursor: hasNext ? String(start + pageSize) : null,
-        };
-      }
-    }
-
-    const existing = this._schoolRatingsCache.get(schoolId);
-    if (existing && cursor === null) {
-      const slice = existing.ratings.slice(0, pageSize);
-      const hasNext = existing.ratings.length > pageSize;
-      return {
-        school: existing.school,
-        ratings: slice,
-        has_next_page: hasNext,
-        next_cursor: hasNext ? String(pageSize) : null,
-      };
-    }
-
-    const first = await this._fetchSchoolRatingsPage(schoolId, { first: 100 });
-
-    let allRatings = [...first.ratings];
-    const school = first.school;
-    let after = first.has_next_page ? first.next_cursor : null;
-
-    while (after != null) {
-      const next = await this._fetchSchoolRatingsPage(schoolId, {
-        after,
-        first: 100,
-      });
-      allRatings = allRatings.concat(next.ratings);
-      after = next.has_next_page ? next.next_cursor : null;
-    }
-
-    this._schoolRatingsCache.set(schoolId, { school, ratings: allRatings });
-
-    const slice = allRatings.slice(0, pageSize);
-    const hasNext = allRatings.length > pageSize;
-    return {
-      school,
-      ratings: slice,
-      has_next_page: hasNext,
-      next_cursor: hasNext ? String(pageSize) : null,
-    };
+    return this._fetchSchoolRatingsPage(schoolId, {
+      after: options.cursor,
+      first: options.page_size ?? 20,
+    });
   }
 
   /**
    * Async generator that yields all ratings for a school.
    * Optional `since` stops when a rating date is before that date.
+   *
+   * Assumes the API returns ratings newest-first.
    */
   async *iterSchoolRatings(
     schoolId: string,
@@ -567,6 +443,7 @@ export class RMPClient {
         page_size: pageSize,
       });
       for (const rating of page.ratings) {
+        // API returns ratings newest-first; stop when we pass the cutoff date.
         if (since && rating.date.getTime() <= since.getTime()) return;
         yield rating;
       }
@@ -718,7 +595,6 @@ export class RMPClient {
       name,
       department: node.department != null ? String(node.department) : null,
       school,
-      url: node.url != null ? String(node.url) : null,
       overall_rating: safeFloat(node.avgRating ?? node.overallRating),
       num_ratings: safeInt(node.numRatings),
       percent_take_again: safeFloat(

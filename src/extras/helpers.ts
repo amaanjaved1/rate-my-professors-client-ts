@@ -2,11 +2,18 @@
  * Helpers for normalizing and validating rating comments.
  */
 
-/**
- * Strip HTML tags from text (RMP comments occasionally contain markup).
- */
+/** Strip HTML tags and decode HTML entities from text. */
 function stripHtml(text: string): string {
-  return text.replace(/<[^>]*>/g, "");
+  const stripped = text.replace(/<[^>]*>/g, "");
+  return stripped
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 export interface NormalizeOptions {

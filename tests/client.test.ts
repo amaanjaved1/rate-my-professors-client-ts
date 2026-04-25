@@ -15,7 +15,7 @@ const SCHOOL_WESTERN = "1491";
 const SCHOOL_UW = "1530";
 const PROFESSOR_ID = "2823076";
 
-const client = new RMPClient(createConfig({ rate_limit_per_minute: 30 }));
+const client = new RMPClient(createConfig());
 
 afterAll(async () => {
   await client.close();
@@ -198,7 +198,7 @@ describe("RMPClient.getCompareSchools", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getProfessorRatingsPage (cached pagination)
+// getProfessorRatingsPage
 // ---------------------------------------------------------------------------
 
 describe("RMPClient.getProfessorRatingsPage", () => {
@@ -216,7 +216,7 @@ describe("RMPClient.getProfessorRatingsPage", () => {
     }
   });
 
-  it("loads more from cache", async () => {
+  it("loads more", async () => {
     const p1 = await client.getProfessorRatingsPage(PROFESSOR_ID, {
       page_size: 3,
     });
@@ -268,7 +268,7 @@ describe("RMPClient.getProfessorRatingsPage", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getSchoolRatingsPage (cached pagination)
+// getSchoolRatingsPage
 // ---------------------------------------------------------------------------
 
 describe("RMPClient.getSchoolRatingsPage", () => {
@@ -295,7 +295,7 @@ describe("RMPClient.getSchoolRatingsPage", () => {
     }
   });
 
-  it("loads more from cache", async () => {
+  it("loads more", async () => {
     const p1 = await client.getSchoolRatingsPage(SCHOOL_QUEENS, {
       page_size: 3,
     });
@@ -379,6 +379,7 @@ describe("RMPClient.iterSchoolRatings", () => {
       page_size: 5,
     })) {
       comments.push(r.comment);
+      if (comments.length >= 10) break;
     }
     expect(comments.length).toBeGreaterThan(0);
   });

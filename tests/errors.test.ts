@@ -5,7 +5,6 @@ import {
   HttpError,
   ParsingError,
   RMPAPIError,
-  RateLimitError,
   RetryError,
 } from "../src/errors.js";
 
@@ -29,11 +28,6 @@ describe("RMPError hierarchy", () => {
 
   it("RMPAPIError is RMPError", () => {
     const err = new RMPAPIError("api err", []);
-    expect(err).toBeInstanceOf(RMPError);
-  });
-
-  it("RateLimitError is RMPError", () => {
-    const err = new RateLimitError("limit exceeded");
     expect(err).toBeInstanceOf(RMPError);
   });
 
@@ -89,12 +83,5 @@ describe("ParsingError", () => {
   it("message is set", () => {
     const err = new ParsingError("Unexpected payload shape");
     expect(String(err)).toContain("Unexpected");
-  });
-});
-
-describe("RateLimitError", () => {
-  it("message is set", () => {
-    const err = new RateLimitError("Local rate limit exceeded");
-    expect(String(err).toLowerCase()).toContain("rate limit");
   });
 });

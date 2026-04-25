@@ -31,6 +31,11 @@ describe("normalizeComment", () => {
     expect(normalizeComment("<b>Loved</b> this class")).toBe("loved this class");
   });
 
+  it("decodes HTML entities", () => {
+    expect(normalizeComment("great &amp; easy")).toBe("great & easy");
+    expect(normalizeComment("<b>bold</b> &amp; great")).toBe("bold & great");
+  });
+
   it("stripHtml option", () => {
     expect(normalizeComment("<b>Bold</b>", { stripHtml: false })).toBe("<b>bold</b>");
   });
@@ -118,5 +123,13 @@ describe("buildCourseMapping", () => {
   it("empty valid", () => {
     const mapping = buildCourseMapping(["MATH 101"], []);
     expect(mapping.get("MATH 101")).toBeNull();
+  });
+
+  it("four-digit course number match", () => {
+    const valid = ["MATH 1001", "CS 1102"];
+    const scraped = ["MATH1001", "CS1102"];
+    const mapping = buildCourseMapping(scraped, valid);
+    expect(mapping.get("MATH1001")).toEqual(new Set(["MATH 1001"]));
+    expect(mapping.get("CS1102")).toEqual(new Set(["CS 1102"]));
   });
 });

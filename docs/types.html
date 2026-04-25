@@ -75,7 +75,6 @@
       <tr><td><code>name</code></td><td><code>string</code></td><td>Full name</td></tr>
       <tr><td><code>department</code></td><td><code>string | null</code></td><td>Department name</td></tr>
       <tr><td><code>school</code></td><td><code>School | null</code></td><td>Associated school</td></tr>
-      <tr><td><code>url</code></td><td><code>string | null</code></td><td>RMP profile URL</td></tr>
       <tr><td><code>overall_rating</code></td><td><code>number | null</code></td><td>Average rating</td></tr>
       <tr><td><code>num_ratings</code></td><td><code>number | null</code></td><td>Total number of ratings</td></tr>
       <tr><td><code>percent_take_again</code></td><td><code>number | null</code></td><td>"Would take again" percentage</td></tr>
@@ -143,7 +142,7 @@
     </table>
 
     <h2 id="ProfessorRatingsPage">ProfessorRatingsPage <a href="#ProfessorRatingsPage" class="anchor">#</a></h2>
-    <p>One page of professor ratings. Subsequent pages are served from an in-memory cache.</p>
+    <p>One page of professor ratings. Pass <code>next_cursor</code> to the next call to load the following page.</p>
     <table>
       <tr><th>Field</th><th>Type</th><th>Description</th></tr>
       <tr><td><code>professor</code></td><td><code>Professor</code></td><td>The professor these ratings belong to</td></tr>

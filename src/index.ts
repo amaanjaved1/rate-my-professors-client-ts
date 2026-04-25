@@ -8,8 +8,8 @@
  *
  * Quick start:
  * ```ts
- * import { RMPClient, createConfig } from "ratemyprofessors-client";
- * const client = new RMPClient(createConfig({ rate_limit_per_minute: 30 }));
+ * import { RMPClient } from "ratemyprofessors-client";
+ * const client = new RMPClient();
  * const result = await client.searchProfessors("Smith");
  * await client.close();
  * ```
@@ -28,7 +28,6 @@ export {
   RMPError,
   ConfigurationError,
   HttpError,
-  RateLimitError,
   RetryError,
   RMPAPIError,
   ParsingError,

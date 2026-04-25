@@ -36,7 +36,7 @@ export function buildCourseMapping(
     }
 
     const prefixMatch = key.match(/^[A-Z]+/);
-    const numMatch = key.match(/(\d{3})/);
+    const numMatch = key.match(/(\d{3,4})/);
     const candidates = new Set<string>();
     if (prefixMatch && numMatch) {
       const prefix = prefixMatch[0];
