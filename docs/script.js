@@ -1,6 +1,6 @@
 (function () {
-  var MOON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
-  var SUN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+  var MOON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  var SUN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
 
   function isDark() {
     return document.documentElement.classList.contains('dark');
@@ -28,7 +28,77 @@
 
     buildTOC();
     if (typeof hljs !== 'undefined') hljs.highlightAll();
+    decorateCodeBlocks();
   });
+
+  var LANG_LABELS = {
+    bash: 'shell',
+    sh: 'shell',
+    python: 'python',
+    typescript: 'ts',
+    javascript: 'js',
+    json: 'json',
+  };
+
+  function decorateCodeBlocks() {
+    var blocks = document.querySelectorAll('pre > code');
+    blocks.forEach(function (code) {
+      var pre = code.parentElement;
+
+      var match = (code.className || '').match(/language-([\w-]+)/);
+      if (match) {
+        var tag = document.createElement('span');
+        tag.className = 'code-lang';
+        tag.textContent = LANG_LABELS[match[1]] || match[1];
+        pre.appendChild(tag);
+      }
+
+      var btn = document.createElement('button');
+      btn.className = 'code-copy';
+      btn.type = 'button';
+      btn.textContent = 'copy';
+      btn.setAttribute('aria-label', 'Copy code to clipboard');
+      btn.addEventListener('click', function () {
+        copyText(code.innerText, function (ok) {
+          btn.textContent = ok ? 'copied' : 'failed';
+          btn.classList.add('copied');
+          setTimeout(function () {
+            btn.textContent = 'copy';
+            btn.classList.remove('copied');
+          }, 1600);
+        });
+      });
+      pre.appendChild(btn);
+    });
+  }
+
+  function copyText(text, done) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { done(true); },
+        function () { done(fallbackCopy(text)); }
+      );
+    } else {
+      done(fallbackCopy(text));
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (e) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  }
 
   function buildTOC() {
     var list = document.getElementById('toc-list');
