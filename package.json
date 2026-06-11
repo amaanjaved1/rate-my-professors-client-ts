@@ -1,6 +1,6 @@
 {
   "name": "ratemyprofessors-client",
-  "version": "3.0.0",
+  "version": "3.0.2",
   "type": "module",
   "description": "Typed, retrying, rate-limited unofficial client for RateMyProfessors.",
   "main": "dist/index.js",

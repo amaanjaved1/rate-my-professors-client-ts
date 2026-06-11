@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.2
+
+- Docs redesign: new typography (Newsreader + Hanken Grotesk + IBM Plex Mono), warm editorial colour scheme, per-package accent colours, copy buttons on code blocks, and improved dark mode.
+
 ## 2.1.5
 
 - Version bump for publish.
